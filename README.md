@@ -45,7 +45,8 @@
 
 1. **克隆项目**
    ```bash
-   cd /Users/yunkaichen/Downloads/my_etf_web
+   git clone https://github.com/sagirisensee/etf-stock-analysis-platform.git
+   cd etf-stock-analysis-platform
    ```
 
 2. **创建虚拟环境**
@@ -68,6 +69,27 @@
 5. **访问应用**
    打开浏览器访问: http://localhost:8888
 
+## 🚀 快速开始（硅基流动免费版）
+
+### 1. 获取免费API密钥
+1. 访问 [硅基流动官网](https://siliconflow.cn)
+2. 注册账号并登录
+3. 在控制台获取API密钥
+
+### 2. 配置AI模型
+1. 启动应用后访问: http://localhost:8888
+2. 点击"系统配置"
+3. 填写以下信息：
+   - **API基础URL**: `https://api.siliconflow.cn/v1`
+   - **模型名称**: `Qwen/Qwen3-8B`
+   - **API密钥**: 从硅基流动获取的密钥
+4. 点击"保存配置"
+
+### 3. 开始分析
+1. 添加您关注的ETF和股票代码
+2. 点击"开始分析"
+3. 等待AI分析完成，查看评分和建议
+
 ## 使用指南
 
 ### 1. 系统配置
@@ -76,6 +98,11 @@
 - 填写AI模型API基础URL和密钥
 - 选择合适的模型名称
 - 设置数据缓存时间
+
+**推荐配置（硅基流动免费）：**
+- API基础URL: `https://api.siliconflow.cn/v1`
+- 模型名称: `Qwen/Qwen3-8B`
+- API密钥: 在[硅基流动官网](https://siliconflow.cn)注册获取
 
 ### 2. 管理标的池
 - 访问"标的池管理"页面
@@ -97,7 +124,12 @@
 
 ## 支持的AI服务
 
-### Perplexity AI (推荐)
+### 硅基流动 (免费推荐) ⭐
+- API基础URL: `https://api.siliconflow.cn/v1`
+- 模型: `Qwen/Qwen3-8B`
+- **完全免费**，分析质量优秀，推荐新手使用
+
+### Perplexity AI
 - API基础URL: `https://api.perplexity.ai`
 - 模型: `sonar-pro`
 - 性价比高，分析质量好
@@ -214,9 +246,9 @@ my_etf_web/
 ## 📞 支持
 
 如有问题或建议，请通过以下方式联系：
-- 📝 [提交Issue](https://github.com/your-username/etf-stock-analysis-platform/issues)
+- 📝 [提交Issue](https://github.com/sagirisensee/etf-stock-analysis-platformt/issues)
 - 📧 发送邮件到：[your-email@example.com]
-- 📖 查看[文档](https://github.com/your-username/etf-stock-analysis-platform/wiki)
+- 📖 查看[文档](https://github.com/sagirisensee/etf-stock-analysis-platform/wiki)
 
 ## 🙏 致谢
 

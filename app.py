@@ -76,9 +76,9 @@ def init_db():
         
         # 插入默认配置
         default_configs = [
-            ('LLM_API_BASE', ''),
+            ('LLM_API_BASE', 'https://api.siliconflow.cn/v1'),
             ('LLM_API_KEY', ''),
-            ('LLM_MODEL_NAME', 'sonar-pro'),
+            ('LLM_MODEL_NAME', 'Qwen/Qwen3-8B'),
             ('CACHE_EXPIRE_SECONDS', '60')
         ]
         
