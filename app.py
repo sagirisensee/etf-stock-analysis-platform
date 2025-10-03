@@ -76,7 +76,7 @@ def init_db():
         
         # 插入默认配置
         default_configs = [
-            ('LLM_API_BASE', 'https://api.siliconflow.cn/v1'),
+            ('LLM_API_BASE', ''),
             ('LLM_API_KEY', ''),
             ('LLM_MODEL_NAME', 'Qwen/Qwen3-8B'),
             ('CACHE_EXPIRE_SECONDS', '60')
@@ -88,27 +88,7 @@ def init_db():
                 (key, value)
             )
         
-        # 插入默认股票池
-        default_etfs = [
-            ('沪深300ETF', 'etf', '510300')
-        ]
-        
-        default_stocks = [
-            ('贵州茅台', 'stock', '600519')
-        ]
-        
-        for name, pool_type, code in default_etfs + default_stocks:
-            # 检查是否已存在相同的type+code组合
-            existing = conn.execute(
-                'SELECT COUNT(*) FROM stock_pools WHERE type = ? AND code = ?',
-                (pool_type, code)
-            ).fetchone()[0]
-            
-            if existing == 0:
-                conn.execute(
-                    'INSERT INTO stock_pools (name, type, code) VALUES (?, ?, ?)',
-                    (name, pool_type, code)
-                )
+        # 不再插入默认标的池数据，让用户自己添加
         
         conn.commit()
 
@@ -203,17 +183,32 @@ def config_page():
 def update_config():
     """更新配置"""
     try:
-        for key in ['LLM_API_BASE', 'LLM_API_KEY', 'LLM_MODEL_NAME', 'CACHE_EXPIRE_SECONDS']:
-            value = request.form.get(key, '')
+        # 处理模型名称
+        model_name = request.form.get('LLM_MODEL_NAME', '')
+        custom_model_name = request.form.get('customModelName', '')
+        
+        # 如果选择了自定义模型且有自定义模型名称，使用自定义模型名称
+        if model_name == 'custom' and custom_model_name.strip():
+            model_name = custom_model_name.strip()
+        
+        # 更新配置
+        config_data = {
+            'LLM_API_BASE': request.form.get('LLM_API_BASE', ''),
+            'LLM_API_KEY': request.form.get('LLM_API_KEY', ''),
+            'LLM_MODEL_NAME': model_name,
+            'CACHE_EXPIRE_SECONDS': request.form.get('CACHE_EXPIRE_SECONDS', '60')
+        }
+        
+        for key, value in config_data.items():
             set_config(key, value)
             # 更新环境变量
             os.environ[key] = value
         
         flash('配置更新成功！', 'success')
+        return redirect(url_for('config_page'))
     except Exception as e:
         flash(f'配置更新失败：{str(e)}', 'error')
-    
-    return redirect(url_for('config_page'))
+        return redirect(url_for('config_page'))
 
 @app.route('/pools')
 def pools_page():
@@ -260,6 +255,23 @@ def analysis_page():
 def api_analyze(analysis_type):
     """API分析接口"""
     try:
+        # 检查AI API配置是否完整
+        llm_api_base = get_config('LLM_API_BASE')
+        llm_api_key = get_config('LLM_API_KEY')
+        llm_model_name = get_config('LLM_MODEL_NAME')
+        
+        if not llm_api_base or not llm_api_key or not llm_model_name:
+            missing_configs = []
+            if not llm_api_base:
+                missing_configs.append("API基础URL")
+            if not llm_api_key:
+                missing_configs.append("API密钥")
+            if not llm_model_name:
+                missing_configs.append("AI模型名称")
+            
+            error_message = f"AI API配置不完整，请前往系统配置页面填写：{', '.join(missing_configs)}"
+            return jsonify({"success": False, "error": error_message})
+        
         # 更新环境变量
         for key in ['LLM_API_BASE', 'LLM_API_KEY', 'LLM_MODEL_NAME', 'CACHE_EXPIRE_SECONDS']:
             value = get_config(key)
@@ -268,6 +280,8 @@ def api_analyze(analysis_type):
         
         if analysis_type == 'etf':
             pools = get_stock_pools('etf')
+            if not pools:
+                return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
             # 运行异步分析
@@ -275,17 +289,15 @@ def api_analyze(analysis_type):
             asyncio.set_event_loop(loop)
             try:
                 results = loop.run_until_complete(
-                    generate_ai_driven_report(
-                        get_all_etf_spot_realtime,
-                        get_etf_daily_history,
-                        core_pool
-                    )
+                    generate_ai_driven_report(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
                 )
             finally:
                 loop.close()
                 
         elif analysis_type == 'stock':
             pools = get_stock_pools('stock')
+            if not pools:
+                return jsonify({"success": False, "error": "股票标的池为空，请先添加股票标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
             # 运行异步分析
@@ -293,52 +305,61 @@ def api_analyze(analysis_type):
             asyncio.set_event_loop(loop)
             try:
                 results = loop.run_until_complete(
-                    generate_ai_driven_report(
-                        get_all_stock_spot_realtime,
-                        get_stock_daily_history,
-                        core_pool
-                    )
+                    generate_ai_driven_report(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
                 )
             finally:
                 loop.close()
                 
         elif analysis_type == 'etf_debug':
             pools = get_stock_pools('etf')
+            if not pools:
+                return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
-            # 运行异步调试分析
+            # 调试模式调用异步函数
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                logger.info(f"开始调试分析，标的池: {core_pool}")
                 results = loop.run_until_complete(
-                    get_detailed_analysis_report_for_debug(
-                        get_all_etf_spot_realtime,
-                        get_etf_daily_history,
-                        core_pool
-                    )
+                    get_detailed_analysis_report_for_debug(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
                 )
+                logger.info(f"调试分析完成，结果类型: {type(results)}")
+            except Exception as e:
+                logger.error(f"调试分析失败: {str(e)}", exc_info=True)
+                return jsonify({"success": False, "error": f"调试分析失败: {str(e)}"})
             finally:
                 loop.close()
                 
         elif analysis_type == 'stock_debug':
             pools = get_stock_pools('stock')
+            if not pools:
+                return jsonify({"success": False, "error": "股票标的池为空，请先添加股票标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
-            # 运行异步调试分析
+            # 调试模式调用异步函数
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                logger.info(f"开始调试分析，标的池: {core_pool}")
                 results = loop.run_until_complete(
-                    get_detailed_analysis_report_for_debug(
-                        get_all_stock_spot_realtime,
-                        get_stock_daily_history,
-                        core_pool
-                    )
+                    get_detailed_analysis_report_for_debug(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
                 )
+                logger.info(f"调试分析完成，结果类型: {type(results)}")
+            except Exception as e:
+                logger.error(f"调试分析失败: {str(e)}", exc_info=True)
+                return jsonify({"success": False, "error": f"调试分析失败: {str(e)}"})
             finally:
                 loop.close()
         else:
             return jsonify({'error': '不支持的分析类型'}), 400
+        
+        # 检查分析结果
+        if results is None or len(results) == 0:
+            return jsonify({
+                'success': False,
+                'error': '分析失败，无法获取数据。请检查网络连接或稍后重试。'
+            })
         
         # 保存分析历史
         save_analysis_history(analysis_type, results)

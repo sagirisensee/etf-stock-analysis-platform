@@ -22,7 +22,7 @@
                                 </label>
                                 <input type="url" class="form-control" id="LLM_API_BASE" name="LLM_API_BASE" 
                                        value="{{ configs.LLM_API_BASE }}" 
-                                       placeholder="https://api.perplexity.ai"
+                                       placeholder="请输入您的API基础URL"
                                        required>
                                 <div class="form-text">
                                     支持OpenAI兼容的API服务，如Perplexity AI、OpenAI等
@@ -58,12 +58,13 @@
                                     <i class="fas fa-brain me-1"></i>AI模型名称
                                 </label>
                                 <select class="form-select" id="LLM_MODEL_NAME" name="LLM_MODEL_NAME" required>
-                                    <option value="">请选择模型</option>
+                                    <option value="" {{ 'selected' if not configs.LLM_MODEL_NAME or configs.LLM_MODEL_NAME == '' }}>请选择模型</option>
+                                    <option value="Qwen/Qwen3-8B" {{ 'selected' if configs.LLM_MODEL_NAME == 'Qwen/Qwen3-8B' }}>硅基流动 Qwen3-8B (免费推荐)</option>
                                     <option value="sonar-pro" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-pro' }}>Perplexity Sonar Pro</option>
                                     <option value="gpt-4" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-4' }}>OpenAI GPT-4</option>
                                     <option value="gpt-3.5-turbo" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-3.5-turbo' }}>OpenAI GPT-3.5 Turbo</option>
                                     <option value="claude-3-sonnet" {{ 'selected' if configs.LLM_MODEL_NAME == 'claude-3-sonnet' }}>Claude 3 Sonnet</option>
-                                    <option value="custom" {{ 'selected' if configs.LLM_MODEL_NAME not in ['sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] and configs.LLM_MODEL_NAME }}>自定义模型</option>
+                                    <option value="custom" {{ 'selected' if configs.LLM_MODEL_NAME and configs.LLM_MODEL_NAME not in ['Qwen/Qwen3-8B', 'sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] }}>自定义模型</option>
                                 </select>
                                 <div class="form-text">
                                     选择您要使用的AI模型
@@ -88,13 +89,14 @@
                     </div>
                     
                     <!-- 自定义模型名称输入框 -->
-                    <div class="row" id="customModelRow" style="display: none;">
+                    <div class="row" id="customModelRow" style="display: {{ 'block' if configs.LLM_MODEL_NAME and configs.LLM_MODEL_NAME not in ['Qwen/Qwen3-8B', 'sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] else 'none' }};">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="customModelName" class="form-label">
                                     <i class="fas fa-edit me-1"></i>自定义模型名称
                                 </label>
-                                <input type="text" class="form-control" id="customModelName" 
+                                <input type="text" class="form-control" id="customModelName" name="customModelName"
+                                       value="{{ configs.LLM_MODEL_NAME if configs.LLM_MODEL_NAME and configs.LLM_MODEL_NAME not in ['Qwen/Qwen3-8B', 'sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] else '' }}"
                                        placeholder="输入自定义模型名称">
                                 <div class="form-text">
                                     输入您的自定义AI模型名称
@@ -110,6 +112,9 @@
                                     <i class="fas fa-plug me-1"></i>测试连接
                                 </button>
                                 <div>
+                                    <button type="button" class="btn btn-outline-info me-2" id="debugConfig">
+                                        <i class="fas fa-bug me-1"></i>调试信息
+                                    </button>
                                     <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
                                         <i class="fas fa-undo me-1"></i>重置
                                     </button>
@@ -138,9 +143,10 @@
             <div class="card-body">
                 <h6><i class="fas fa-server text-primary me-2"></i>API基础URL</h6>
                 <p class="small text-muted mb-3">
-                    支持OpenAI兼容的API服务。常用服务：
+                    支持OpenAI兼容的API服务。推荐服务：
                 </p>
                 <ul class="small">
+                    <li><strong>硅基流动 (免费推荐):</strong> https://api.siliconflow.cn/v1</li>
                     <li><strong>Perplexity AI:</strong> https://api.perplexity.ai</li>
                     <li><strong>OpenAI:</strong> https://api.openai.com/v1</li>
                     <li><strong>其他兼容服务:</strong> 请参考服务商文档</li>
@@ -165,7 +171,8 @@
             <div class="card-body">
                 <h6><i class="fas fa-brain text-success me-2"></i>模型选择</h6>
                 <ul class="small">
-                    <li><strong>Sonar Pro:</strong> 推荐，性价比高，分析质量好</li>
+                    <li><strong>Qwen3-8B:</strong> 免费推荐，分析质量优秀，适合新手</li>
+                    <li><strong>Sonar Pro:</strong> 性价比高，分析质量好</li>
                     <li><strong>GPT-4:</strong> 分析质量最高，但成本较高</li>
                     <li><strong>GPT-3.5:</strong> 成本低，适合大量分析</li>
                 </ul>
@@ -221,10 +228,42 @@
         const modelSelect = document.getElementById('LLM_MODEL_NAME');
         const customModelInput = document.getElementById('customModelName');
         
-        // 如果选择了自定义模型，使用自定义模型名称
+        console.log('表单提交 - 模型选择框值:', modelSelect.value);
+        console.log('表单提交 - 自定义模型输入框值:', customModelInput.value);
+        
+        // 如果选择了自定义模型，确保自定义模型名称被正确传递
         if (modelSelect.value === 'custom' && customModelInput.value.trim()) {
-            modelSelect.value = customModelInput.value.trim();
+            console.log('检测到自定义模型，保持custom值不变，自定义模型名称:', customModelInput.value.trim());
+            // 不修改modelSelect.value，保持为'custom'，让后端处理
         }
+    });
+
+    // 调试信息功能
+    document.getElementById('debugConfig').addEventListener('click', function() {
+        const modelSelect = document.getElementById('LLM_MODEL_NAME');
+        const customModelInput = document.getElementById('customModelName');
+        const customModelRow = document.getElementById('customModelRow');
+        
+        const debugInfo = {
+            '模型选择框值': modelSelect.value,
+            '模型选择框显示文本': modelSelect.options[modelSelect.selectedIndex]?.text || '无',
+            '自定义模型输入框值': customModelInput.value,
+            '自定义模型行显示状态': customModelRow.style.display,
+            '自定义模型行是否可见': customModelRow.offsetParent !== null,
+            '当前时间': new Date().toLocaleString()
+        };
+        
+        let debugText = '🔍 调试信息：\n\n';
+        for (const [key, value] of Object.entries(debugInfo)) {
+            debugText += `${key}: ${value}\n`;
+        }
+        
+        // 显示调试信息
+        alert(debugText);
+        
+        // 同时在控制台输出
+        console.log('=== 调试信息 ===');
+        console.log(debugInfo);
     });
 
     // 测试连接功能
@@ -336,9 +375,114 @@
     // 页面加载时检查自定义模型
     document.addEventListener('DOMContentLoaded', function() {
         const modelSelect = document.getElementById('LLM_MODEL_NAME');
+        const customModelRow = document.getElementById('customModelRow');
+        const customModelInput = document.getElementById('customModelName');
+        
+        console.log('页面加载完成，开始初始化模型选择框');
+        console.log('当前模型选择框的值:', modelSelect.value);
+        
+        // 强制检查并设置自定义模型
+        const presetModels = ['Qwen/Qwen3-8B', 'sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'];
+        
         if (modelSelect.value === 'custom') {
-            document.getElementById('customModelRow').style.display = 'block';
+            console.log('检测到custom选项被选中，显示自定义模型行');
+            customModelRow.style.display = 'block';
+            customModelInput.required = true;
+            console.log('设置自定义模型行显示状态为block');
+        } else if (modelSelect.value && !presetModels.includes(modelSelect.value)) {
+            console.log('检测到自定义模型名称，切换到自定义模式');
+            const originalModelName = modelSelect.value;
+            modelSelect.value = 'custom';
+            customModelInput.value = originalModelName;
+            customModelRow.style.display = 'block';
+            customModelInput.required = true;
+            console.log('自定义模型设置完成，模型名称:', originalModelName);
+        } else {
+            console.log('使用预设模型或未选择模型');
+            customModelRow.style.display = 'none';
+            customModelInput.required = false;
         }
+        
+        // 强制检查：如果自定义模型输入框有值，确保显示自定义模型行
+        if (customModelInput.value && customModelInput.value.trim()) {
+            console.log('检测到自定义模型输入框有值，强制显示自定义模型行');
+            customModelRow.style.display = 'block';
+            customModelInput.required = true;
+            if (modelSelect.value !== 'custom') {
+                modelSelect.value = 'custom';
+                console.log('强制设置选择框为custom');
+            }
+        }
+        
+        // 额外强制检查：如果选择框是custom，强制显示自定义模型行
+        if (modelSelect.value === 'custom') {
+            console.log('额外强制检查：选择框是custom，强制显示自定义模型行');
+            customModelRow.style.display = 'block';
+            customModelInput.required = true;
+            console.log('强制设置后的显示状态:', customModelRow.style.display);
+        }
+        
+        // 添加额外的检查，确保状态正确
+        setTimeout(function() {
+            console.log('延迟检查 - 当前状态:');
+            console.log('模型选择框值:', modelSelect.value);
+            console.log('自定义模型输入框值:', customModelInput.value);
+            console.log('自定义模型行显示状态:', customModelRow.style.display);
+            
+            // 强制修复：如果自定义模型输入框有值但行被隐藏，强制显示
+            if (customModelInput.value && customModelInput.value.trim() && customModelRow.style.display === 'none') {
+                console.log('强制修复：显示自定义模型行');
+                customModelRow.style.display = 'block';
+                customModelInput.required = true;
+                if (modelSelect.value !== 'custom') {
+                    modelSelect.value = 'custom';
+                    console.log('强制设置选择框为custom');
+                }
+            }
+        }, 100);
+        
+        // 再次延迟检查，确保修复生效
+        setTimeout(function() {
+            console.log('最终检查 - 当前状态:');
+            console.log('模型选择框值:', modelSelect.value);
+            console.log('自定义模型输入框值:', customModelInput.value);
+            console.log('自定义模型行显示状态:', customModelRow.style.display);
+            
+            // 最终强制修复
+            if (customModelInput.value && customModelInput.value.trim() && customModelInput.value !== 'none') {
+                console.log('最终强制修复：确保自定义模型正确显示');
+                customModelRow.style.display = 'block';
+                customModelInput.required = true;
+                if (modelSelect.value !== 'custom') {
+                    modelSelect.value = 'custom';
+                    console.log('最终强制设置选择框为custom');
+                }
+            }
+            
+            // 额外强制修复：如果选择框是custom，强制显示自定义模型行
+            if (modelSelect.value === 'custom') {
+                console.log('最终强制修复：选择框是custom，强制显示自定义模型行');
+                customModelRow.style.display = 'block';
+                customModelInput.required = true;
+                console.log('最终强制设置后的显示状态:', customModelRow.style.display);
+            }
+        }, 500);
+        
+        // 最后的安全检查
+        setTimeout(function() {
+            console.log('最后安全检查 - 当前状态:');
+            console.log('模型选择框值:', modelSelect.value);
+            console.log('自定义模型输入框值:', customModelInput.value);
+            console.log('自定义模型行显示状态:', customModelRow.style.display);
+            
+            // 如果还是被隐藏，强制显示
+            if (modelSelect.value === 'custom' && customModelRow.style.display === 'none') {
+                console.log('最后安全检查：强制显示自定义模型行');
+                customModelRow.style.display = 'block';
+                customModelInput.required = true;
+                console.log('最后强制设置后的显示状态:', customModelRow.style.display);
+            }
+        }, 1000);
     });
 </script>
 {% endblock %}

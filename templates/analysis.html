@@ -152,11 +152,24 @@
                 currentAnalysisData = result.data;
                 displayResults(result.data, type, result.timestamp);
             } else {
-                showAlert('分析失败：' + (result.error || '未知错误'), 'danger');
+                const errorMessage = `
+                    <strong>分析失败！</strong><br>
+                    <small>${result.error || '未知错误'}</small><br>
+                    <small class="mt-2">请检查：<br>
+                    1. 标的池是否已配置<br>
+                    2. AI模型配置是否正确<br>
+                    3. API密钥是否有效</small>
+                `;
+                showAlert(errorMessage, 'danger');
             }
         } catch (error) {
             clearInterval(progressInterval);
-            showAlert('分析请求失败：' + error.message, 'danger');
+            const errorMessage = `
+                <strong>分析请求失败！</strong><br>
+                <small>错误详情：${error.message}</small><br>
+                <small class="mt-2">请刷新页面后重试</small>
+            `;
+            showAlert(errorMessage, 'danger');
         } finally {
             // 隐藏加载状态
             document.getElementById('loadingSection').style.display = 'none';
@@ -198,7 +211,7 @@
         resultsSection.scrollIntoView({ behavior: 'smooth' });
         
         // 更新最近分析
-        updateRecentAnalysis(type, timestamp, data.length);
+        updateRecentAnalysis(type, timestamp, data ? data.length : 0);
     }
 
     // 生成AI分析结果HTML

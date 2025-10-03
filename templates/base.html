@@ -29,6 +29,28 @@
             background-color: #f5f6fa;
         }
 
+        /* 错误提示动画 */
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        .alert-danger.position-fixed {
+            animation: slideInRight 0.3s ease-out, shake 0.5s ease-out 0.3s;
+        }
+
         .navbar {
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -283,19 +305,64 @@
 
         function showAlert(message, type = 'info') {
             const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            
+            // 根据类型设置不同的图标和样式
+            let icon = '';
+            let borderColor = '';
+            let bgGradient = '';
+            
+            if (type === 'danger') {
+                icon = '<i class="fas fa-exclamation-triangle fa-2x me-3"></i>';
+                borderColor = '#e74c3c';
+                bgGradient = 'linear-gradient(135deg, #e74c3c, #ec7063)';
+            } else if (type === 'success') {
+                icon = '<i class="fas fa-check-circle fa-2x me-3"></i>';
+                borderColor = '#27ae60';
+                bgGradient = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+            } else if (type === 'warning') {
+                icon = '<i class="fas fa-exclamation-circle fa-2x me-3"></i>';
+                borderColor = '#f39c12';
+                bgGradient = 'linear-gradient(135deg, #f39c12, #f1c40f)';
+            } else {
+                icon = '<i class="fas fa-info-circle fa-2x me-3"></i>';
+                borderColor = '#3498db';
+                bgGradient = 'linear-gradient(135deg, #3498db, #5dade2)';
+            }
+            
+            alertDiv.style.cssText = `
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                min-width: 400px;
+                max-width: 600px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+                border: 3px solid ${borderColor};
+                background: ${bgGradient};
+                color: white;
+                font-weight: bold;
+                font-size: 16px;
+                animation: slideInRight 0.3s ease-out;
             `;
             
-            const container = document.querySelector('.container-fluid');
-            container.insertBefore(alertDiv, container.firstChild);
+            alertDiv.innerHTML = `
+                <div class="d-flex align-items-center">
+                    ${icon}
+                    <div class="flex-grow-1">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(alertDiv);
             
             // 自动消失
             setTimeout(() => {
-                alertDiv.remove();
-            }, 5000);
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, type === 'danger' ? 10000 : 5000);  // 错误提示显示更久
         }
 
         // 格式化分数显示

@@ -104,6 +104,10 @@
 - 模型名称: `Qwen/Qwen3-8B`
 - API密钥: 在[硅基流动官网](https://siliconflow.cn)注册获取
 
+**其他可选配置：**
+- Perplexity AI: `https://api.perplexity.ai` (模型: `sonar-pro`)
+- OpenAI: `https://api.openai.com/v1` (模型: `gpt-3.5-turbo`)
+
 ### 2. 管理标的池
 - 访问"标的池管理"页面
 - 添加您关注的ETF和股票代码
