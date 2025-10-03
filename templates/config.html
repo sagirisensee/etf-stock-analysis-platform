@@ -112,9 +112,11 @@
                                     <i class="fas fa-plug me-1"></i>测试连接
                                 </button>
                                 <div>
-                                    <button type="button" class="btn btn-outline-info me-2" id="debugConfig">
-                                        <i class="fas fa-bug me-1"></i>调试信息
-                                    </button>
+                            <!-- 调试信息按钮已注释
+                            <button type="button" class="btn btn-outline-info me-2" id="debugConfig">
+                                <i class="fas fa-bug me-1"></i>调试信息
+                            </button>
+                            -->
                                     <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
                                         <i class="fas fa-undo me-1"></i>重置
                                     </button>
@@ -238,13 +240,15 @@
         }
     });
 
-    // 调试信息功能
-    document.getElementById('debugConfig').addEventListener('click', function() {
+    // 调试信息功能已注释
+    /*
+    document.getElementById('debugConfig').addEventListener('click', async function() {
         const modelSelect = document.getElementById('LLM_MODEL_NAME');
         const customModelInput = document.getElementById('customModelName');
         const customModelRow = document.getElementById('customModelRow');
         
-        const debugInfo = {
+        // 前端调试信息
+        const frontendDebugInfo = {
             '模型选择框值': modelSelect.value,
             '模型选择框显示文本': modelSelect.options[modelSelect.selectedIndex]?.text || '无',
             '自定义模型输入框值': customModelInput.value,
@@ -253,18 +257,60 @@
             '当前时间': new Date().toLocaleString()
         };
         
-        let debugText = '🔍 调试信息：\n\n';
-        for (const [key, value] of Object.entries(debugInfo)) {
-            debugText += `${key}: ${value}\n`;
+        // 获取后端真实配置信息
+        try {
+            const response = await fetch('/api/debug-config');
+            const data = await response.json();
+            
+            if (data.success) {
+                const backendDebugInfo = {
+                    '数据库中的模型名称': data.database_config.LLM_MODEL_NAME || '未设置',
+                    '环境变量中的模型名称': data.environment_config.LLM_MODEL_NAME || '未设置',
+                    '真实使用的模型名称': data.real_model_name || '未设置',
+                    'API基础URL': data.database_config.LLM_API_BASE || '未设置',
+                    'API密钥状态': data.database_config.LLM_API_KEY ? '已设置' : '未设置',
+                    '缓存过期时间': data.database_config.CACHE_EXPIRE_SECONDS + '秒'
+                };
+                
+                // 合并调试信息
+                const allDebugInfo = {
+                    ...frontendDebugInfo,
+                    '--- 后端真实配置 ---': '---',
+                    ...backendDebugInfo
+                };
+                
+                let debugText = '🔍 完整调试信息：\n\n';
+                for (const [key, value] of Object.entries(allDebugInfo)) {
+                    if (key === '--- 后端真实配置 ---') {
+                        debugText += `\n${key}\n`;
+                    } else {
+                        debugText += `${key}: ${value}\n`;
+                    }
+                }
+                
+                // 显示调试信息
+                alert(debugText);
+                
+                // 同时在控制台输出
+                console.log('=== 完整调试信息 ===');
+                console.log(allDebugInfo);
+            } else {
+                throw new Error(data.error || '获取后端配置失败');
+            }
+        } catch (error) {
+            console.error('获取后端配置失败:', error);
+            
+            // 如果后端请求失败，只显示前端信息
+            let debugText = '🔍 前端调试信息：\n\n';
+            for (const [key, value] of Object.entries(frontendDebugInfo)) {
+                debugText += `${key}: ${value}\n`;
+            }
+            debugText += `\n⚠️ 后端配置获取失败: ${error.message}`;
+            
+            alert(debugText);
         }
-        
-        // 显示调试信息
-        alert(debugText);
-        
-        // 同时在控制台输出
-        console.log('=== 调试信息 ===');
-        console.log(debugInfo);
     });
+    */
 
     // 测试连接功能
     document.getElementById('testConnection').addEventListener('click', async function() {

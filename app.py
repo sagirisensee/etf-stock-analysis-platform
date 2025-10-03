@@ -251,6 +251,39 @@ def analysis_page():
     """分析页面"""
     return render_template('analysis.html')
 
+# 调试配置API已注释
+# @app.route('/api/debug-config')
+# def api_debug_config():
+#     """获取调试配置信息"""
+#     try:
+#         # 获取当前配置
+#         configs = {
+#             'LLM_API_BASE': get_config('LLM_API_BASE', ''),
+#             'LLM_API_KEY': get_config('LLM_API_KEY', ''),
+#             'LLM_MODEL_NAME': get_config('LLM_MODEL_NAME', ''),
+#             'CACHE_EXPIRE_SECONDS': get_config('CACHE_EXPIRE_SECONDS', '60')
+#         }
+#         
+#         # 获取环境变量中的实际值
+#         env_configs = {
+#             'LLM_API_BASE': os.getenv('LLM_API_BASE', ''),
+#             'LLM_API_KEY': os.getenv('LLM_API_KEY', ''),
+#             'LLM_MODEL_NAME': os.getenv('LLM_MODEL_NAME', ''),
+#             'CACHE_EXPIRE_SECONDS': os.getenv('CACHE_EXPIRE_SECONDS', '60')
+#         }
+#         
+#         return jsonify({
+#             'success': True,
+#             'database_config': configs,
+#             'environment_config': env_configs,
+#             'real_model_name': configs['LLM_MODEL_NAME'] or env_configs['LLM_MODEL_NAME']
+#         })
+#     except Exception as e:
+#         return jsonify({
+#             'success': False,
+#             'error': str(e)
+#         })
+
 @app.route('/api/analyze/<analysis_type>')
 def api_analyze(analysis_type):
     """API分析接口"""
