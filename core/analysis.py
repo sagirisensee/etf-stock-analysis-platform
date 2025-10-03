@@ -22,7 +22,8 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
     if realtime_data_df is None:
         return [{"name": "错误", "code": "", "ai_score": 0, "ai_comment": "获取实时数据失败，无法分析。"}]
     daily_trends_map = {item['code']: item for item in daily_trends_list}
-    if get_realtime_data_func == get_all_stock_spot_realtime:
+    # 根据core_pool中的type字段判断，而不是根据函数引用
+    if core_pool and core_pool[0].get('type') == 'stock':
         item_type = "stock"
     else:
         item_type = "etf"
@@ -51,7 +52,7 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
     analysis_report = []
     for item_info in core_pool:
         try:
-            result = await get_daily_history_func(item_info['code'])
+            result = await get_daily_history_func(item_info['code'], item_info.get('type', 'stock'))
             if result is None or result.empty:
                 analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据为空或无法获取。"], 'raw_debug_data': {}})
                 continue
