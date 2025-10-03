@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}系统配置 - AI量化投资分析平台{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-cog me-2"></i>系统配置
+                </h4>
+                <p class="text-muted mb-0 mt-2">配置AI模型和系统参数以开始使用分析功能</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="configForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="LLM_API_BASE" class="form-label">
+                                    <i class="fas fa-server me-1"></i>AI模型API基础URL
+                                </label>
+                                <input type="url" class="form-control" id="LLM_API_BASE" name="LLM_API_BASE" 
+                                       value="{{ configs.LLM_API_BASE }}" 
+                                       placeholder="https://api.perplexity.ai"
+                                       required>
+                                <div class="form-text">
+                                    支持OpenAI兼容的API服务，如Perplexity AI、OpenAI等
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="LLM_API_KEY" class="form-label">
+                                    <i class="fas fa-key me-1"></i>AI模型API密钥
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="LLM_API_KEY" name="LLM_API_KEY" 
+                                           value="{{ configs.LLM_API_KEY }}" 
+                                           placeholder="输入您的API密钥"
+                                           required>
+                                    <button class="btn btn-outline-secondary" type="button" id="toggleApiKey">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    请确保API密钥有足够的调用额度
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="LLM_MODEL_NAME" class="form-label">
+                                    <i class="fas fa-brain me-1"></i>AI模型名称
+                                </label>
+                                <select class="form-select" id="LLM_MODEL_NAME" name="LLM_MODEL_NAME" required>
+                                    <option value="">请选择模型</option>
+                                    <option value="sonar-pro" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-pro' }}>Perplexity Sonar Pro</option>
+                                    <option value="gpt-4" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-4' }}>OpenAI GPT-4</option>
+                                    <option value="gpt-3.5-turbo" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-3.5-turbo' }}>OpenAI GPT-3.5 Turbo</option>
+                                    <option value="claude-3-sonnet" {{ 'selected' if configs.LLM_MODEL_NAME == 'claude-3-sonnet' }}>Claude 3 Sonnet</option>
+                                    <option value="custom" {{ 'selected' if configs.LLM_MODEL_NAME not in ['sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] and configs.LLM_MODEL_NAME }}>自定义模型</option>
+                                </select>
+                                <div class="form-text">
+                                    选择您要使用的AI模型
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="CACHE_EXPIRE_SECONDS" class="form-label">
+                                    <i class="fas fa-clock me-1"></i>数据缓存时间（秒）
+                                </label>
+                                <input type="number" class="form-control" id="CACHE_EXPIRE_SECONDS" name="CACHE_EXPIRE_SECONDS" 
+                                       value="{{ configs.CACHE_EXPIRE_SECONDS }}" 
+                                       min="30" max="3600" 
+                                       placeholder="60">
+                                <div class="form-text">
+                                    市场数据缓存有效期，建议30-300秒
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义模型名称输入框 -->
+                    <div class="row" id="customModelRow" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customModelName" class="form-label">
+                                    <i class="fas fa-edit me-1"></i>自定义模型名称
+                                </label>
+                                <input type="text" class="form-control" id="customModelName" 
+                                       placeholder="输入自定义模型名称">
+                                <div class="form-text">
+                                    输入您的自定义AI模型名称
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-secondary" id="testConnection">
+                                    <i class="fas fa-plug me-1"></i>测试连接
+                                </button>
+                                <div>
+                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
+                                        <i class="fas fa-undo me-1"></i>重置
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i>保存配置
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 配置说明卡片 -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>配置说明
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="fas fa-server text-primary me-2"></i>API基础URL</h6>
+                <p class="small text-muted mb-3">
+                    支持OpenAI兼容的API服务。常用服务：
+                </p>
+                <ul class="small">
+                    <li><strong>Perplexity AI:</strong> https://api.perplexity.ai</li>
+                    <li><strong>OpenAI:</strong> https://api.openai.com/v1</li>
+                    <li><strong>其他兼容服务:</strong> 请参考服务商文档</li>
+                </ul>
+                
+                <h6 class="mt-3"><i class="fas fa-key text-warning me-2"></i>API密钥</h6>
+                <p class="small text-muted">
+                    从您选择的AI服务商获取API密钥。请确保密钥有足够的调用额度，
+                    因为每次分析会调用多次AI接口。
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>使用建议
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="fas fa-brain text-success me-2"></i>模型选择</h6>
+                <ul class="small">
+                    <li><strong>Sonar Pro:</strong> 推荐，性价比高，分析质量好</li>
+                    <li><strong>GPT-4:</strong> 分析质量最高，但成本较高</li>
+                    <li><strong>GPT-3.5:</strong> 成本低，适合大量分析</li>
+                </ul>
+                
+                <h6 class="mt-3"><i class="fas fa-clock text-info me-2"></i>缓存设置</h6>
+                <p class="small text-muted">
+                    较短的缓存时间可获取更新的数据，但会增加API调用次数。
+                    建议在交易时间内使用60-120秒缓存。
+                </p>
+                
+                <div class="alert alert-warning small mt-3">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>注意：</strong>请妥善保管您的API密钥，不要分享给他人。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 切换API密钥显示/隐藏
+    document.getElementById('toggleApiKey').addEventListener('click', function() {
+        const apiKeyInput = document.getElementById('LLM_API_KEY');
+        const icon = this.querySelector('i');
+        
+        if (apiKeyInput.type === 'password') {
+            apiKeyInput.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            apiKeyInput.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    });
+
+    // 模型选择变化处理
+    document.getElementById('LLM_MODEL_NAME').addEventListener('change', function() {
+        const customModelRow = document.getElementById('customModelRow');
+        const customModelInput = document.getElementById('customModelName');
+        
+        if (this.value === 'custom') {
+            customModelRow.style.display = 'block';
+            customModelInput.required = true;
+        } else {
+            customModelRow.style.display = 'none';
+            customModelInput.required = false;
+        }
+    });
+
+    // 表单提交处理
+    document.getElementById('configForm').addEventListener('submit', function(e) {
+        const modelSelect = document.getElementById('LLM_MODEL_NAME');
+        const customModelInput = document.getElementById('customModelName');
+        
+        // 如果选择了自定义模型，使用自定义模型名称
+        if (modelSelect.value === 'custom' && customModelInput.value.trim()) {
+            modelSelect.value = customModelInput.value.trim();
+        }
+    });
+
+    // 测试连接功能
+    document.getElementById('testConnection').addEventListener('click', async function() {
+        const button = this;
+        const originalText = button.innerHTML;
+        
+        // 显示加载状态
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>测试中...';
+        button.disabled = true;
+        
+        try {
+            const apiBase = document.getElementById('LLM_API_BASE').value;
+            const apiKey = document.getElementById('LLM_API_KEY').value;
+            const modelName = document.getElementById('LLM_MODEL_NAME').value;
+            
+            if (!apiBase || !apiKey || !modelName) {
+                showAlert('请先填写完整的配置信息', 'warning');
+                return;
+            }
+            
+            // 这里可以添加实际的连接测试逻辑
+            // 暂时模拟测试
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // 显示更显眼的成功提示
+            const successAlert = document.createElement('div');
+            successAlert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+            successAlert.style.cssText = `
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                min-width: 300px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border: 2px solid #27ae60;
+                background: linear-gradient(135deg, #27ae60, #2ecc71);
+                color: white;
+                font-weight: bold;
+            `;
+            successAlert.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-check-circle fa-2x me-3"></i>
+                    <div>
+                        <h6 class="mb-1">连接测试成功！</h6>
+                        <small>AI模型配置有效，可以正常使用</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(successAlert);
+            
+            // 自动消失
+            setTimeout(() => {
+                if (successAlert.parentNode) {
+                    successAlert.remove();
+                }
+            }, 5000);
+            
+        } catch (error) {
+            // 显示更显眼的失败提示
+            const errorAlert = document.createElement('div');
+            errorAlert.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+            errorAlert.style.cssText = `
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                min-width: 300px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border: 2px solid #e74c3c;
+                background: linear-gradient(135deg, #e74c3c, #ec7063);
+                color: white;
+                font-weight: bold;
+            `;
+            errorAlert.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                    <div>
+                        <h6 class="mb-1">连接测试失败！</h6>
+                        <small>${error.message}</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(errorAlert);
+            
+            // 自动消失
+            setTimeout(() => {
+                if (errorAlert.parentNode) {
+                    errorAlert.remove();
+                }
+            }, 8000);
+        } finally {
+            // 恢复按钮状态
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    });
+
+    // 重置表单
+    function resetForm() {
+        if (confirm('确定要重置所有配置吗？')) {
+            document.getElementById('configForm').reset();
+            document.getElementById('customModelRow').style.display = 'none';
+        }
+    }
+
+    // 页面加载时检查自定义模型
+    document.addEventListener('DOMContentLoaded', function() {
+        const modelSelect = document.getElementById('LLM_MODEL_NAME');
+        if (modelSelect.value === 'custom') {
+            document.getElementById('customModelRow').style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

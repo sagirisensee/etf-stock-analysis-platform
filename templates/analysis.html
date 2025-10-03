@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}智能分析 - AI量化投资分析平台{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>智能分析
+                </h4>
+                <p class="text-muted mb-0 mt-2">对您的投资标的进行AI驱动的量化分析</p>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-primary card-clickable" onclick="startAnalysis('etf')">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-pie fa-3x text-primary mb-3"></i>
+                                <h5>ETF AI分析</h5>
+                                <p class="text-muted">对ETF池中的基金进行AI评分和分析</p>
+                                <button class="btn btn-primary" onclick="event.stopPropagation(); startAnalysis('etf')">
+                                    <i class="fas fa-play me-1"></i>开始ETF分析
+                                </button>
+                                <button class="btn btn-outline-primary ms-2" onclick="event.stopPropagation(); startAnalysis('etf_debug')">
+                                    <i class="fas fa-bug me-1"></i>调试模式
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-success card-clickable" onclick="startAnalysis('stock')">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
+                                <h5>股票AI分析</h5>
+                                <p class="text-muted">对股票池中的股票进行AI评分和分析</p>
+                                <button class="btn btn-success" onclick="event.stopPropagation(); startAnalysis('stock')">
+                                    <i class="fas fa-play me-1"></i>开始股票分析
+                                </button>
+                                <button class="btn btn-outline-success ms-2" onclick="event.stopPropagation(); startAnalysis('stock_debug')">
+                                    <i class="fas fa-bug me-1"></i>调试模式
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载状态 -->
+<div id="loadingSection" class="loading-spinner">
+    <div class="text-center">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">分析中...</span>
+        </div>
+        <h5 class="mt-3">AI分析进行中...</h5>
+        <p class="text-muted">正在获取数据并进行智能分析，请稍候</p>
+        <div class="progress mt-3" style="max-width: 400px; margin: 0 auto;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                 role="progressbar" style="width: 0%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 分析结果 -->
+<div id="resultsSection" style="display: none;">
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>分析结果
+                        <span id="analysisType" class="badge bg-primary ms-2"></span>
+                    </h5>
+                    <div>
+                        <small class="text-muted me-3">
+                            <i class="fas fa-clock me-1"></i>
+                            分析时间：<span id="analysisTime"></span>
+                        </small>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="exportResults()">
+                            <i class="fas fa-download me-1"></i>导出
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="resultsContent">
+                        <!-- 分析结果将在这里动态加载 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分析历史快速访问 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>最近分析
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="recentAnalysis">
+                    <div class="text-center py-3">
+                        <i class="fas fa-clock fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">暂无分析记录，开始您的第一次分析吧！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentAnalysisData = null;
+
+    // 开始分析
+    async function startAnalysis(type) {
+        // 显示加载状态
+        document.getElementById('loadingSection').style.display = 'block';
+        document.getElementById('resultsSection').style.display = 'none';
+        
+        // 重置进度条
+        const progressBar = document.getElementById('progressBar');
+        progressBar.style.width = '0%';
+        
+        // 模拟进度更新
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) progress = 90;
+            progressBar.style.width = progress + '%';
+        }, 500);
+        
+        try {
+            const response = await fetch(`/api/analyze/${type}`);
+            const result = await response.json();
+            
+            // 完成进度条
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+            
+            if (result.success) {
+                currentAnalysisData = result.data;
+                displayResults(result.data, type, result.timestamp);
+            } else {
+                showAlert('分析失败：' + (result.error || '未知错误'), 'danger');
+            }
+        } catch (error) {
+            clearInterval(progressInterval);
+            showAlert('分析请求失败：' + error.message, 'danger');
+        } finally {
+            // 隐藏加载状态
+            document.getElementById('loadingSection').style.display = 'none';
+        }
+    }
+
+    // 显示分析结果
+    function displayResults(data, type, timestamp) {
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContent = document.getElementById('resultsContent');
+        const analysisTypeSpan = document.getElementById('analysisType');
+        const analysisTimeSpan = document.getElementById('analysisTime');
+        
+        // 设置分析类型和时间
+        const typeNames = {
+            'etf': 'ETF分析',
+            'stock': '股票分析',
+            'etf_debug': 'ETF调试',
+            'stock_debug': '股票调试'
+        };
+        analysisTypeSpan.textContent = typeNames[type] || type;
+        analysisTimeSpan.textContent = formatDateTime(timestamp);
+        
+        // 生成结果HTML
+        let html = '';
+        
+        if (type.includes('debug')) {
+            // 调试模式结果
+            html = generateDebugResults(data);
+        } else {
+            // AI分析结果
+            html = generateAIResults(data);
+        }
+        
+        resultsContent.innerHTML = html;
+        resultsSection.style.display = 'block';
+        
+        // 滚动到结果区域
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        
+        // 更新最近分析
+        updateRecentAnalysis(type, timestamp, data.length);
+    }
+
+    // 生成AI分析结果HTML
+    function generateAIResults(data) {
+        if (!data || data.length === 0) {
+            return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无分析数据</p></div>';
+        }
+        
+        let html = '<div class="row">';
+        
+        data.forEach((item, index) => {
+            const scoreClass = getScoreClass(item.ai_score || 0);
+            const rank = index + 1;
+            
+            html += `
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="card-title mb-1">
+                                        <span class="badge bg-secondary me-2">#${rank}</span>
+                                        ${item.name || '未知'}
+                                    </h5>
+                                    <p class="text-muted mb-0">
+                                        <code>${item.code || 'N/A'}</code>
+                                    </p>
+                                </div>
+                                <div class="score-badge ${scoreClass}">
+                                    ${item.ai_score || 0}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted">价格信息</small>
+                                <div class="d-flex justify-content-between">
+                                    <span>最新价：<strong>${item.price || 'N/A'}</strong></span>
+                                    <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                        ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted">AI点评</small>
+                                <p class="small">${item.ai_comment || '暂无点评'}</p>
+                            </div>
+                            
+                            ${item.analysis_points && item.analysis_points.length > 0 ? `
+                                <div>
+                                    <small class="text-muted">技术信号</small>
+                                    <div class="mt-1">
+                                        ${item.analysis_points.map(point => 
+                                            `<span class="badge bg-light text-dark me-1 mb-1">${point}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    // 生成调试结果HTML
+    function generateDebugResults(data) {
+        if (!data || data.length === 0) {
+            return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无调试数据</p></div>';
+        }
+        
+        let html = '<div class="row">';
+        
+        data.forEach((item, index) => {
+            html += `
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <h5>${item.name || '未知'}</h5>
+                                    <p class="text-muted mb-1"><code>${item.code || 'N/A'}</code></p>
+                                    <p class="mb-1">最新价：<strong>${item.price || 'N/A'}</strong></p>
+                                    <p class="mb-0">
+                                        涨跌幅：
+                                        <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                            ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                        </span>
+                                    </p>
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>日线趋势</h6>
+                                    <p class="mb-0">${item.daily_trend_status || '未知'}</p>
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>盘中信号</h6>
+                                    ${item.intraday_signals && item.intraday_signals.length > 0 ? 
+                                        item.intraday_signals.map(signal => 
+                                            `<span class="badge bg-info me-1 mb-1">${signal}</span>`
+                                        ).join('') : 
+                                        '<span class="text-muted">无特殊信号</span>'
+                                    }
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>技术指标</h6>
+                                    ${item.technical_indicators_summary && item.technical_indicators_summary.length > 0 ? 
+                                        `<div class="small">${item.technical_indicators_summary.slice(0, 3).map(indicator => 
+                                            `<div class="mb-1">${indicator}</div>`
+                                        ).join('')}</div>` : 
+                                        '<span class="text-muted">数据不足</span>'
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    // 更新最近分析
+    function updateRecentAnalysis(type, timestamp, count) {
+        const recentAnalysis = document.getElementById('recentAnalysis');
+        const typeNames = {
+            'etf': 'ETF分析',
+            'stock': '股票分析',
+            'etf_debug': 'ETF调试',
+            'stock_debug': '股票调试'
+        };
+        
+        const html = `
+            <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                <div>
+                    <h6 class="mb-1">${typeNames[type] || type}</h6>
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>${formatDateTime(timestamp)}
+                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${count} 个标的</span>
+                    </small>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="showCurrentResults()">
+                    <i class="fas fa-eye me-1"></i>查看
+                </button>
+            </div>
+        `;
+        
+        recentAnalysis.innerHTML = html;
+    }
+
+    // 显示当前结果
+    function showCurrentResults() {
+        if (currentAnalysisData) {
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    // 导出结果
+    function exportResults() {
+        if (!currentAnalysisData) {
+            showAlert('暂无数据可导出', 'warning');
+            return;
+        }
+        
+        const dataStr = JSON.stringify(currentAnalysisData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `analysis_results_${new Date().getTime()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        showAlert('分析结果已导出', 'success');
+    }
+
+    // 页面加载时检查是否有最近的分析
+    document.addEventListener('DOMContentLoaded', function() {
+        // 这里可以加载最近的分析历史
+        // loadRecentAnalysis();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - AI量化投资分析平台{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <!-- 欢迎横幅 -->
+        <div class="analysis-card text-center">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-robot me-3"></i>AI量化投资分析平台
+            </h1>
+            <p class="lead mb-4">
+                基于人工智能的ETF和股票投资分析系统，为您提供专业的量化分析和投资建议
+            </p>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <i class="fas fa-chart-line fa-3x mb-3"></i>
+                        <h5>智能分析</h5>
+                        <p>结合技术指标和AI分析，提供综合评分</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <i class="fas fa-database fa-3x mb-3"></i>
+                        <h5>实时数据</h5>
+                        <p>获取最新的市场行情和历史数据</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <i class="fas fa-cogs fa-3x mb-3"></i>
+                        <h5>灵活配置</h5>
+                        <p>自定义股票池和AI模型参数</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <!-- 快速操作卡片 -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card h-100 card-clickable" onclick="location.href='{{ url_for('analysis_page') }}'">
+            <div class="card-body text-center">
+                <i class="fas fa-play-circle fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">开始分析</h5>
+                <p class="card-text">立即对您的股票池进行AI分析</p>
+                <a href="{{ url_for('analysis_page') }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-right me-1"></i>开始分析
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card h-100 card-clickable" onclick="location.href='{{ url_for('pools_page') }}'">
+            <div class="card-body text-center">
+                <i class="fas fa-list-alt fa-3x text-success mb-3"></i>
+                <h5 class="card-title">管理标的池</h5>
+                <p class="card-text">添加、删除和管理您的投资标的</p>
+                <a href="{{ url_for('pools_page') }}" class="btn btn-success">
+                    <i class="fas fa-edit me-1"></i>管理标的池
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card h-100 card-clickable" onclick="location.href='{{ url_for('config_page') }}'">
+            <div class="card-body text-center">
+                <i class="fas fa-cog fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">系统配置</h5>
+                <p class="card-text">配置AI模型和系统参数</p>
+                <a href="{{ url_for('config_page') }}" class="btn btn-warning">
+                    <i class="fas fa-wrench me-1"></i>系统配置
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card h-100 card-clickable" onclick="location.href='{{ url_for('history_page') }}'">
+            <div class="card-body text-center">
+                <i class="fas fa-history fa-3x text-info mb-3"></i>
+                <h5 class="card-title">分析历史</h5>
+                <p class="card-text">查看过往的分析结果和记录</p>
+                <a href="{{ url_for('history_page') }}" class="btn btn-info">
+                    <i class="fas fa-search me-1"></i>查看历史
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>功能介绍
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-chart-bar text-primary me-2"></i>智能分析功能</h6>
+                        <ul class="list-unstyled ms-3">
+                            <li><i class="fas fa-check text-success me-2"></i>ETF和股票的AI评分分析</li>
+                            <li><i class="fas fa-check text-success me-2"></i>技术指标综合分析</li>
+                            <li><i class="fas fa-check text-success me-2"></i>实时行情数据获取</li>
+                            <li><i class="fas fa-check text-success me-2"></i>历史数据趋势分析</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-tools text-warning me-2"></i>管理功能</h6>
+                        <ul class="list-unstyled ms-3">
+                            <li><i class="fas fa-check text-success me-2"></i>自定义股票池管理</li>
+                            <li><i class="fas fa-check text-success me-2"></i>AI模型参数配置</li>
+                            <li><i class="fas fa-check text-success me-2"></i>分析历史记录保存</li>
+                            <li><i class="fas fa-check text-success me-2"></i>可视化结果展示</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-rocket me-2"></i>快速开始
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <span class="fw-bold">1</span>
+                        </div>
+                        <h6 class="mt-2">配置AI参数</h6>
+                        <p class="text-muted small">设置您的AI模型API密钥和参数</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <span class="fw-bold">2</span>
+                        </div>
+                        <h6 class="mt-2">添加股票</h6>
+                        <p class="text-muted small">在股票池中添加您关注的投资标的</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <span class="fw-bold">3</span>
+                        </div>
+                        <h6 class="mt-2">开始分析</h6>
+                        <p class="text-muted small">运行AI分析获取投资建议</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <span class="fw-bold">4</span>
+                        </div>
+                        <h6 class="mt-2">查看结果</h6>
+                        <p class="text-muted small">获取详细的分析报告和评分</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 页面加载动画
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.classList.add('fade-in');
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

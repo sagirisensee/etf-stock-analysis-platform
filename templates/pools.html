@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block title %}标的池管理 - AI量化投资分析平台{% endblock %}
+
+{% block content %}
+<style>
+    /* 确保表格列宽一致 */
+    .pools-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    
+    .pools-table th:nth-child(1),
+    .pools-table td:nth-child(1) {
+        width: 35%;
+    }
+    
+    .pools-table th:nth-child(2),
+    .pools-table td:nth-child(2) {
+        width: 20%;
+    }
+    
+    .pools-table th:nth-child(3),
+    .pools-table td:nth-child(3) {
+        width: 25%;
+    }
+    
+    .pools-table th:nth-child(4),
+    .pools-table td:nth-child(4) {
+        width: 20%;
+        text-align: center;
+    }
+    
+    .pools-table td {
+        vertical-align: middle;
+    }
+</style>
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">
+                        <i class="fas fa-list-alt me-2"></i>标的池管理
+                    </h4>
+                    <p class="text-muted mb-0 mt-2">管理您的投资标的池，支持ETF和股票</p>
+                </div>
+                <div>
+                    <div class="btn-group me-2" role="group">
+                        <a href="{{ url_for('export_pools') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-download me-1"></i>导出
+                        </a>
+                        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModal">
+                            <i class="fas fa-upload me-1"></i>导入
+                        </button>
+                    </div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
+                        <i class="fas fa-plus me-1"></i>添加标的
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ETF池 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2 text-primary"></i>ETF标的
+                    <span class="badge bg-primary ms-2">{{ etf_pools|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if etf_pools %}
+                    <div class="table-responsive">
+                        <table class="table table-hover pools-table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>代码</th>
+                                    <th>添加时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for etf in etf_pools %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ etf.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <code class="bg-light px-2 py-1 rounded">{{ etf.code }}</code>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ etf.created_at }}</small>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('remove_pool', pool_id=etf.id) }}" 
+                                              style="display: inline;" 
+                                              onsubmit="return confirm('确定要移除 {{ etf.name }} 吗？')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">暂无ETF标的，点击上方按钮添加</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 股票池 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2 text-success"></i>股票标的
+                    <span class="badge bg-success ms-2">{{ stock_pools|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if stock_pools %}
+                    <div class="table-responsive">
+                        <table class="table table-hover pools-table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>代码</th>
+                                    <th>添加时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in stock_pools %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ stock.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <code class="bg-light px-2 py-1 rounded">{{ stock.code }}</code>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ stock.created_at }}</small>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('remove_pool', pool_id=stock.id) }}" 
+                                              style="display: inline;" 
+                                              onsubmit="return confirm('确定要移除 {{ stock.name }} 吗？')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">暂无股票标的，点击上方按钮添加</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加标的模态框 -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>添加投资标的
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_pool') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="stockType" class="form-label">
+                            <i class="fas fa-tag me-1"></i>类型
+                        </label>
+                        <select class="form-select" id="stockType" name="type" required>
+                            <option value="">请选择类型</option>
+                            <option value="etf">ETF基金</option>
+                            <option value="stock">股票</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="stockCode" class="form-label">
+                            <i class="fas fa-code me-1"></i>代码
+                        </label>
+                        <input type="text" class="form-control" id="stockCode" name="code" 
+                               placeholder="例如：510300" required>
+                        <div class="form-text">
+                            请输入6位数字的股票或ETF代码
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="stockName" class="form-label">
+                            <i class="fas fa-signature me-1"></i>名称
+                        </label>
+                        <input type="text" class="form-control" id="stockName" name="name" 
+                               placeholder="例如：沪深300ETF" required>
+                        <div class="form-text">
+                            输入便于识别的名称
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        取消
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>添加
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 导入股票池模态框 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload me-2"></i>导入标的池
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('import_pools') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="importFile" class="form-label">
+                            <i class="fas fa-file me-1"></i>选择文件
+                        </label>
+                        <input type="file" class="form-control" id="importFile" name="file" 
+                               accept=".json" required>
+                        <div class="form-text">
+                            支持JSON格式文件，文件大小不超过10MB
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-1"></i>文件格式说明</h6>
+                        <p class="mb-2">JSON文件应包含以下结构：</p>
+                        <pre class="small mb-0">{
+  "etf_pools": [
+    {"name": "沪深300ETF", "code": "510300"}
+  ],
+  "stock_pools": [
+    {"name": "贵州茅台", "code": "600519"}
+  ]
+}</pre>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>注意：</strong>导入会添加新的标的，不会删除现有数据。重复的标的会被自动忽略。
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        取消
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-1"></i>导入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 使用说明 -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>使用说明
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="fas fa-chart-pie text-primary me-2"></i>ETF基金</h6>
+                <p class="small text-muted mb-3">
+                    交易所交易基金，如沪深300ETF(510300)、创业板50ETF(159919)等。
+                </p>
+                
+                <h6><i class="fas fa-chart-line text-success me-2"></i>股票</h6>
+                <p class="small text-muted mb-3">
+                    A股上市公司股票，如贵州茅台(600519)、腾讯控股(00700)等。
+                </p>
+                
+                <div class="alert alert-info small">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>提示：</strong>建议添加5-20个标的进行分析，过多可能影响分析速度。
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-search me-2"></i>常用代码参考
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>热门ETF</h6>
+                <div class="row small mb-3">
+                    <div class="col-6">
+                        <ul class="list-unstyled">
+                            <li><code>510300</code> 沪深300ETF</li>
+                            <li><code>510500</code> 中证500ETF</li>
+                            <li><code>159919</code> 创业板50ETF</li>
+                        </ul>
+                    </div>
+                    <div class="col-6">
+                        <ul class="list-unstyled">
+                            <li><code>510050</code> 上证50ETF</li>
+                            <li><code>159915</code> 创业板ETF</li>
+                            <li><code>512880</code> 证券ETF</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <h6>热门股票</h6>
+                <div class="row small">
+                    <div class="col-6">
+                        <ul class="list-unstyled">
+                            <li><code>600519</code> 贵州茅台</li>
+                            <li><code>000858</code> 五粮液</li>
+                            <li><code>000001</code> 平安银行</li>
+                        </ul>
+                    </div>
+                    <div class="col-6">
+                        <ul class="list-unstyled">
+                            <li><code>600036</code> 招商银行</li>
+                            <li><code>000002</code> 万科A</li>
+                            <li><code>600000</code> 浦发银行</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 表单验证
+    document.getElementById('stockCode').addEventListener('input', function() {
+        const value = this.value.replace(/\D/g, ''); // 只保留数字
+        this.value = value;
+        
+        // 验证长度
+        if (value.length > 6) {
+            this.value = value.substring(0, 6);
+        }
+    });
+
+    // 类型选择变化时的提示
+    document.getElementById('stockType').addEventListener('change', function() {
+        const codeInput = document.getElementById('stockCode');
+        const nameInput = document.getElementById('stockName');
+        
+        if (this.value === 'etf') {
+            codeInput.placeholder = '例如：510300';
+            nameInput.placeholder = '例如：沪深300ETF';
+        } else if (this.value === 'stock') {
+            codeInput.placeholder = '例如：600519';
+            nameInput.placeholder = '例如：贵州茅台';
+        }
+    });
+
+    // 添加成功后关闭模态框
+    {% if get_flashed_messages() %}
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addStockModal'));
+        if (modal) {
+            modal.hide();
+        }
+    {% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""
+AI量化投资分析平台 - 启动脚本
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+# 设置工作目录
+os.chdir(project_root)
+
+if __name__ == '__main__':
+    try:
+        from app import app, init_db
+        
+        print("=== AI量化投资分析平台 ===")
+        print(f"项目目录: {project_root}")
+        
+        # 初始化数据库
+        print("正在初始化数据库...")
+        init_db()
+        print("数据库初始化完成")
+        
+        # 启动Web服务
+        print("启动Web服务...")
+        print("访问地址: http://localhost:8888")
+        print("按 Ctrl+C 停止服务")
+        
+        app.run(
+            debug=True,
+            host='0.0.0.0',
+            port=8888,
+            threaded=True
+        )
+        
+    except KeyboardInterrupt:
+        print("\n服务已停止")
+    except Exception as e:
+        print(f"启动失败: {e}")
+        sys.exit(1)

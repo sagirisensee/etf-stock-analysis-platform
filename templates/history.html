@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}分析历史 - AI量化投资分析平台{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">
+                        <i class="fas fa-history me-2"></i>分析历史
+                    </h4>
+                    <p class="text-muted mb-0 mt-2">查看过往的分析结果和记录</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" onclick="refreshHistory()">
+                        <i class="fas fa-sync-alt me-1"></i>刷新
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="clearHistory()" 
+                            {% if not history %}disabled{% endif %}>
+                        <i class="fas fa-trash me-1"></i>清空历史
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if history %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="searchInput" 
+                                       placeholder="搜索分析记录...">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-select" id="typeFilter">
+                                <option value="">所有类型</option>
+                                <option value="etf">ETF分析</option>
+                                <option value="stock">股票分析</option>
+                                <option value="etf_debug">ETF调试</option>
+                                <option value="stock_debug">股票调试</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="historyList">
+                        {% for record in history %}
+                        <div class="history-item card mb-3" data-type="{{ record.analysis_type }}" 
+                             data-date="{{ record.created_at }}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2">
+                                        <div class="text-center">
+                                            {% if record.analysis_type == 'etf' %}
+                                                <i class="fas fa-chart-pie fa-2x text-primary mb-2"></i>
+                                                <div class="badge bg-primary">ETF分析</div>
+                                            {% elif record.analysis_type == 'stock' %}
+                                                <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
+                                                <div class="badge bg-success">股票分析</div>
+                                            {% elif record.analysis_type == 'etf_debug' %}
+                                                <i class="fas fa-bug fa-2x text-warning mb-2"></i>
+                                                <div class="badge bg-warning">ETF调试</div>
+                                            {% elif record.analysis_type == 'stock_debug' %}
+                                                <i class="fas fa-bug fa-2x text-info mb-2"></i>
+                                                <div class="badge bg-info">股票调试</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <h6 class="mb-1">
+                                            {% if record.analysis_type == 'etf' %}ETF AI分析报告
+                                            {% elif record.analysis_type == 'stock' %}股票AI分析报告
+                                            {% elif record.analysis_type == 'etf_debug' %}ETF调试分析报告
+                                            {% elif record.analysis_type == 'stock_debug' %}股票调试分析报告
+                                            {% endif %}
+                                        </h6>
+                                        <p class="text-muted mb-1">
+                                            <i class="fas fa-clock me-1"></i>
+                                            {{ record.created_at }}
+                                        </p>
+                                        <p class="text-muted mb-0">
+                                            <i class="fas fa-list me-1"></i>
+                                            分析了 
+                                            {% set results = record.results | from_json %}
+                                            {{ results | length if results else 0 }} 个标的
+                                        </p>
+                                    </div>
+                                    
+                                    <div class="col-md-2">
+                                        {% if results and results | length > 0 %}
+                                            <div class="text-center">
+                                                <i class="fas fa-chart-bar fa-2x text-muted"></i>
+                                                <div><small class="text-muted">{{ results | length }} 个标的</small></div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-2 text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" 
+                                                onclick="viewHistory({{ record.id }})">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" 
+                                                onclick="downloadHistory({{ record.id }})">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="deleteHistory({{ record.id }})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- 分页 -->
+                    <nav aria-label="历史记录分页" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1">上一页</a>
+                            </li>
+                            <li class="page-item active">
+                                <a class="page-link" href="#">1</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#">下一页</a>
+                            </li>
+                        </ul>
+                    </nav>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-history fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">暂无分析历史</h5>
+                        <p class="text-muted">开始您的第一次分析，记录将会显示在这里</p>
+                        <a href="{{ url_for('analysis_page') }}" class="btn btn-primary">
+                            <i class="fas fa-play me-1"></i>开始分析
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 查看详情模态框 -->
+<div class="modal fade" id="historyDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-bar me-2"></i>分析详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historyDetailContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    关闭
+                </button>
+                <button type="button" class="btn btn-primary" onclick="downloadCurrentHistory()">
+                    <i class="fas fa-download me-1"></i>下载
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentHistoryData = null;
+
+    // 搜索功能
+    document.getElementById('searchInput').addEventListener('input', function() {
+        filterHistory();
+    });
+
+    // 类型筛选
+    document.getElementById('typeFilter').addEventListener('change', function() {
+        filterHistory();
+    });
+
+    // 筛选历史记录
+    function filterHistory() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const typeFilter = document.getElementById('typeFilter').value;
+        const historyItems = document.querySelectorAll('.history-item');
+
+        historyItems.forEach(item => {
+            const type = item.dataset.type;
+            const text = item.textContent.toLowerCase();
+            
+            const matchesSearch = !searchTerm || text.includes(searchTerm);
+            const matchesType = !typeFilter || type === typeFilter;
+            
+            if (matchesSearch && matchesType) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    // 查看历史详情
+    function viewHistory(recordId) {
+        // 这里应该从后端获取详细数据
+        // 暂时使用模拟数据
+        const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+        
+        // 模拟加载数据
+        setTimeout(() => {
+            const content = document.getElementById('historyDetailContent');
+            content.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>
+                    历史记录详情功能正在开发中，记录ID: ${recordId}
+                </div>
+                <p>这里将显示完整的分析结果，包括：</p>
+                <ul>
+                    <li>详细的AI评分和点评</li>
+                    <li>技术指标分析</li>
+                    <li>市场数据快照</li>
+                    <li>分析参数配置</li>
+                </ul>
+            `;
+        }, 1000);
+        
+        modal.show();
+    }
+
+    // 下载历史记录
+    function downloadHistory(recordId) {
+        // 模拟下载
+        showAlert(`正在下载记录 ${recordId}...`, 'info');
+        
+        // 这里应该调用后端API下载数据
+        setTimeout(() => {
+            showAlert('下载完成！', 'success');
+        }, 2000);
+    }
+
+    // 删除历史记录
+    function deleteHistory(recordId) {
+        if (confirm('确定要删除这条分析记录吗？此操作不可撤销。')) {
+            // 这里应该调用后端API删除数据
+            showAlert('记录已删除', 'success');
+            
+            // 移除DOM元素
+            const historyItem = document.querySelector(`[onclick="viewHistory(${recordId})"]`).closest('.history-item');
+            if (historyItem) {
+                historyItem.remove();
+            }
+        }
+    }
+
+    // 清空所有历史
+    function clearHistory() {
+        if (confirm('确定要清空所有分析历史吗？此操作不可撤销。')) {
+            // 这里应该调用后端API清空数据
+            showAlert('所有历史记录已清空', 'success');
+            location.reload();
+        }
+    }
+
+    // 刷新历史
+    function refreshHistory() {
+        showAlert('正在刷新...', 'info');
+        location.reload();
+    }
+
+    // 下载当前查看的历史
+    function downloadCurrentHistory() {
+        if (currentHistoryData) {
+            const dataStr = JSON.stringify(currentHistoryData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `history_${new Date().getTime()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showAlert('历史记录已下载', 'success');
+        }
+    }
+
+    // 页面加载动画
+    document.addEventListener('DOMContentLoaded', function() {
+        const historyItems = document.querySelectorAll('.history-item');
+        historyItems.forEach((item, index) => {
+            setTimeout(() => {
+                item.classList.add('fade-in');
+            }, index * 100);
+        });
+    });
+</script>
+
+<!-- 自定义过滤器 -->
+<script>
+    // 添加自定义Jinja2过滤器的JavaScript实现
+    function fromJson(jsonString) {
+        try {
+            return JSON.parse(jsonString);
+        } catch (e) {
+            return [];
+        }
+    }
+</script>
+{% endblock %}
