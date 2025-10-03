@@ -49,41 +49,33 @@ def get_all_etf_spot_realtime():
     """获取所有ETF的实时行情数据 (带缓存)"""
     logger.info("正在从AKShare获取所有ETF实时数据...(缓存有效期: %s秒)", CACHE_EXPIRE)
     try:
-        # 使用同花顺数据源，更稳定
-        df = ak.fund_etf_spot_ths()
+        df = ak.fund_etf_spot_em()
         
-        # 统一列名映射（同花顺 -> 标准格式）
+        # 标准化列名映射
         column_mapping = {
-            '基金代码': '代码',
-            '基金名称': '名称', 
-            '当前-单位净值': '最新价',
-            '增长率': '涨跌幅',
-            '增长值': '涨跌额',
-            '前一日-单位净值': '昨收'
+            '代码': '代码',
+            '名称': '名称',
+            '最新价': '最新价',
+            '涨跌幅': '涨跌幅',
+            '涨跌额': '涨跌额',
+            '昨收': '昨收'
         }
         
         # 重命名列
         df = df.rename(columns=column_mapping)
         
-        # 确保数据类型正确
-        numeric_cols = ['最新价', '昨收', '涨跌幅', '涨跌额']
+        numeric_cols = ['最新价', '昨收', '成交额']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        # 清理数据
-        df.dropna(subset=['最新价', '昨收'], inplace=True)
-        
-        # 计算涨跌幅（如果原始数据有问题）
-        if '涨跌幅' not in df.columns or df['涨跌幅'].isna().all():
-            df['涨跌幅'] = 0.0
-            mask = df['昨收'] != 0
-            df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
-        
-        logger.info(f"成功获取ETF数据，共{len(df)}条记录")
+        df.dropna(subset=numeric_cols, inplace=True)
+        # 计算涨跌幅
+        df['涨跌幅'] = 0.0
+        mask = df['昨收'] != 0
+        df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
         return df
     except Exception as e:
-        logger.error(f"获取ETF实时数据失败: {e}", exc_info=True)
+        logger.error(f" 获取ETF实时数据失败: {e}", exc_info=True)
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
@@ -108,7 +100,6 @@ async def get_etf_daily_history(etf_code: str):
         if '日期' in daily_df.columns:
             daily_df.rename(columns={'日期': 'date'}, inplace=True)
         
-        logger.info(f"成功获取 {etf_code} 历史数据，共{len(daily_df)}条记录")
         return daily_df
     except Exception as e:
         logger.warning(f"⚠️ 获取 {etf_code} 日线数据时出错 (将进行重试): {e}")
@@ -119,10 +110,10 @@ def get_all_stock_spot_realtime():
     """获取所有A股的实时行情数据 (带缓存)"""
     logger.info("正在从AKShare获取所有A股实时数据...(缓存有效期: %s秒)", CACHE_EXPIRE)
     try:
-        # 使用东方财富A股数据源
+        # 使用专门获取股票实时行情的接口
         df = ak.stock_zh_a_spot_em()
         
-        # 标准化列名
+        # 标准化列名映射
         column_mapping = {
             '代码': '代码',
             '名称': '名称',
@@ -135,63 +126,19 @@ def get_all_stock_spot_realtime():
         # 重命名列
         df = df.rename(columns=column_mapping)
         
-        # 确保数据类型正确
-        numeric_cols = ['最新价', '昨收', '涨跌幅', '涨跌额']
+        numeric_cols = ['最新价', '昨收', '成交额']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        # 清理数据
-        df.dropna(subset=['最新价', '昨收'], inplace=True)
-        
-        # 计算涨跌幅（如果原始数据有问题）
-        if '涨跌幅' not in df.columns or df['涨跌幅'].isna().all():
-            df['涨跌幅'] = 0.0
-            mask = df['昨收'] != 0
-            df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
-        
-        logger.info(f"成功获取股票数据，共{len(df)}条记录")
+        df.dropna(subset=numeric_cols, inplace=True)
+        # 计算涨跌幅
+        df['涨跌幅'] = 0.0
+        mask = df['昨收'] != 0
+        df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收'])
         return df
     except Exception as e:
-        logger.error(f"获取股票实时数据失败: {e}", exc_info=True)
-        # 如果东方财富数据源失败，尝试新浪数据源
-        try:
-            logger.info("尝试使用新浪数据源...")
-            df = ak.stock_zh_a_spot()
-            
-            # 标准化列名
-            column_mapping = {
-                '代码': '代码',
-                '名称': '名称',
-                '最新价': '最新价',
-                '涨跌幅': '涨跌幅',
-                '涨跌额': '涨跌额',
-                '昨收': '昨收'
-            }
-            
-            # 重命名列
-            df = df.rename(columns=column_mapping)
-            
-            # 确保数据类型正确
-            numeric_cols = ['最新价', '昨收', '涨跌幅', '涨跌额']
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            # 清理数据
-            df.dropna(subset=['最新价', '昨收'], inplace=True)
-            
-            # 计算涨跌幅（如果原始数据有问题）
-            if '涨跌幅' not in df.columns or df['涨跌幅'].isna().all():
-                df['涨跌幅'] = 0.0
-                mask = df['昨收'] != 0
-                df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
-            
-            logger.info(f"使用新浪数据源成功获取股票数据，共{len(df)}条记录")
-            return df
-        except Exception as e2:
-            logger.error(f"新浪数据源也失败: {e2}", exc_info=True)
-            return None
+        logger.error(f" 获取股票实时数据失败: {e}", exc_info=True)
+        return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 async def get_stock_daily_history(stock_code: str):
@@ -216,10 +163,9 @@ async def get_stock_daily_history(stock_code: str):
         if '日期' in daily_df.columns:
             daily_df.rename(columns={'日期': 'date'}, inplace=True)
         
-        logger.info(f"成功获取 {stock_code} 历史数据，共{len(daily_df)}条记录")
         return daily_df
     except Exception as e:
-        logger.warning(f"⚠️ 获取 {stock_code} 日线数据时出错 (将进行重试): {e}")
+        logger.warning(f" 获取 {stock_code} 日线数据时出错 (将进行重试): {e}")
         raise e
 
 # 为了兼容现有代码，保留同步版本的历史数据获取函数
