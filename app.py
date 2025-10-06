@@ -823,7 +823,10 @@ def api_analyze(analysis_type):
         
     except Exception as e:
         logger.error(f"分析失败: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': f'分析失败: {str(e)}'
+        }), 500
 
 @app.route('/history')
 @login_required
