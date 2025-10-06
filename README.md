@@ -218,19 +218,24 @@ print('✅ 所有依赖安装成功！')
 - API基础URL: `https://api.siliconflow.cn/v1`
 - 模型: `Qwen/Qwen3-8B`
 - **完全免费**，分析质量优秀，推荐新手使用
+- ✅ 完全兼容OpenAI格式
 
 ### Perplexity AI
 - API基础URL: `https://api.perplexity.ai`
 - 模型: `sonar-pro`
 - 性价比高，分析质量好
+- ✅ **特殊适配**：自动检测并适配Perplexity响应格式
 
 ### OpenAI
 - API基础URL: `https://api.openai.com/v1`
 - 模型: `gpt-4`, `gpt-3.5-turbo`
 - 分析质量最高，成本较高
+- ✅ 原生支持OpenAI格式
 
 ### 其他兼容服务
-支持任何OpenAI兼容的API服务
+- ✅ 支持任何OpenAI兼容的API服务
+- ✅ 自动检测API提供商类型
+- ✅ 智能适配不同响应格式
 
 ## 项目结构
 
@@ -274,6 +279,20 @@ my_etf_web/
 - **安全**: Werkzeug密码哈希、Flask会话管理
 
 ## 更新日志
+
+### v1.3.0 - API适配优化 (2025-10-06)
+
+#### 🔧 API兼容性
+- ✅ **Perplexity AI特殊适配**：解决400错误和响应格式问题
+- ✅ **自动API检测**：智能识别API提供商类型
+- ✅ **多格式解析**：支持不同API的响应格式
+- ✅ **兜底机制**：解析失败时使用默认值，确保系统稳定
+
+#### 🎯 技术改进
+- ✅ 移除Perplexity AI的response_format限制
+- ✅ 智能JSON提取（支持文本+JSON混合格式）
+- ✅ 正则表达式模式匹配
+- ✅ 错误处理和日志记录优化
 
 ### v1.2.0 - 用户认证系统 (2025-10-06)
 

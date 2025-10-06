@@ -9,6 +9,16 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 # --- 配置 ---
+def _get_api_provider():
+    """检测API提供商类型"""
+    api_base = os.getenv("LLM_API_BASE", "").lower()
+    if "perplexity" in api_base:
+        return "perplexity"
+    elif "openai" in api_base or "siliconflow" in api_base:
+        return "openai"
+    else:
+        return "openai"  # 默认为OpenAI格式
+
 def _get_openai_client():
     """动态获取OpenAI客户端，优先使用环境变量中的配置"""
     try:
@@ -37,6 +47,10 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
     current_client = _get_openai_client()
     if current_client is None:
         return None, "LLM服务未配置或初始化失败。请在配置页面设置AI模型参数。"
+    
+    # 检测API提供商
+    api_provider = _get_api_provider()
+    logger.info(f"检测到API提供商: {api_provider}")
         
     # --- 1. 修改 prompt_data 的结构 ---
     # 将所有必要的信息都扁平化，直接传递给LLM
@@ -77,28 +91,46 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
     )
 
     try:
-        response = await asyncio.to_thread(
-            current_client.chat.completions.create,
-            model=os.getenv("LLM_MODEL_NAME", "sonar-pro"),
-            messages=[
+        # 根据API提供商构建不同的请求参数
+        request_params = {
+            "model": os.getenv("LLM_MODEL_NAME", "sonar-pro"),
+            "messages": [
                 {"role": "system", "content": system_prompt},
-                # 使用 combined_data 传递给 LLM
-                {"role": "user", "content": json.dumps(combined_data, ensure_ascii=False, indent=2)} 
-            ],
-            # 使用通用的 JSON 对象模式，让模型自由生成内容，再由我们解析
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "score": {"type": "number", "description": "0到100分的综合评分"},
-                            "comment": {"type": "string", "description": "一段流畅的、总结性的自然语言交易点评"}
-                        },
-                        "required": ["score", "comment"]
+                {"role": "user", "content": json.dumps(combined_data, ensure_ascii=False, indent=2)}
+            ]
+        }
+        
+        # 根据API提供商添加不同的参数
+        if api_provider == "perplexity":
+            # Perplexity AI 特殊处理
+            request_params.update({
+                "max_tokens": 1000,
+                "temperature": 0.7,
+                "top_p": 0.9
+            })
+            logger.info("使用Perplexity AI格式请求")
+        else:
+            # OpenAI 兼容格式
+            request_params.update({
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "score": {"type": "number", "description": "0到100分的综合评分"},
+                                "comment": {"type": "string", "description": "一段流畅的、总结性的自然语言交易点评"}
+                            },
+                            "required": ["score", "comment"]
+                        }
                     }
                 }
-            }
+            })
+            logger.info("使用OpenAI兼容格式请求")
+        
+        response = await asyncio.to_thread(
+            current_client.chat.completions.create,
+            **request_params
         )
         
         raw_content = response.choices[0].message.content
@@ -106,10 +138,75 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
             logger.warning(f"LLM为空内容返回: {etf_data.get('name')}")
             return 50, "模型未提供有效分析。"
 
-        # 确保解析结果是字典
+        # 根据API提供商进行不同的解析
+        if api_provider == "perplexity":
+            # Perplexity AI 特殊解析：从文本中提取JSON
+            score, comment = _parse_perplexity_response(raw_content)
+        else:
+            # OpenAI 兼容格式解析
+            score, comment = _parse_openai_response(raw_content)
+        
+        return score, comment
+
+    except Exception as e:
+        logger.error(f"调用或解析LLM响应时出错: {e}", exc_info=True)
+        return 50, f"LLM分析服务异常: {e}" # 返回50分和错误信息，确保程序不崩溃
+
+def _parse_perplexity_response(raw_content):
+    """解析Perplexity AI的响应"""
+    import re
+    
+    try:
+        # 尝试直接解析JSON
+        parsed_json = json.loads(raw_content)
+        if isinstance(parsed_json, dict):
+            score = parsed_json.get('score', 50)
+            comment = parsed_json.get('comment', 'Perplexity AI分析完成')
+            return float(score) if isinstance(score, (int, float)) else 50, str(comment)
+    except json.JSONDecodeError:
+        pass
+    
+    # 如果直接解析失败，尝试从文本中提取JSON
+    try:
+        # 查找JSON模式
+        json_pattern = r'\{[^{}]*"score"[^{}]*"comment"[^{}]*\}'
+        json_match = re.search(json_pattern, raw_content, re.DOTALL)
+        
+        if json_match:
+            json_str = json_match.group(0)
+            parsed_json = json.loads(json_str)
+            score = parsed_json.get('score', 50)
+            comment = parsed_json.get('comment', 'Perplexity AI分析完成')
+            return float(score) if isinstance(score, (int, float)) else 50, str(comment)
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    
+    # 如果都失败了，尝试提取数字评分
+    try:
+        # 查找评分数字
+        score_pattern = r'"score":\s*(\d+(?:\.\d+)?)'
+        score_match = re.search(score_pattern, raw_content)
+        score = float(score_match.group(1)) if score_match else 50
+        
+        # 查找评论内容
+        comment_pattern = r'"comment":\s*"([^"]*)"'
+        comment_match = re.search(comment_pattern, raw_content)
+        comment = comment_match.group(1) if comment_match else "Perplexity AI分析完成"
+        
+        return score, comment
+    except (AttributeError, ValueError):
+        pass
+    
+    # 最后的兜底方案
+    logger.warning(f"Perplexity AI响应解析失败，使用默认值: {raw_content[:200]}...")
+    return 50, "Perplexity AI分析完成，但响应格式需要优化"
+
+def _parse_openai_response(raw_content):
+    """解析OpenAI兼容格式的响应"""
+    try:
         parsed_json = json.loads(raw_content)
         
-        # 你的解析逻辑：确保 parsed_json 是一个字典
+        # 确保解析结果是字典
         result_dict = None
         if isinstance(parsed_json, list) and parsed_json:
             result_dict = parsed_json[0]
@@ -120,12 +217,11 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
             score = result_dict.get('score')
             comment = result_dict.get('comment')
             if not isinstance(score, (int, float)):
-                 score = 50
-            return score, comment
+                score = 50
+            return float(score), str(comment)
         else:
-            logger.error(f"LLM返回格式错误，不是预期的JSON字典: {raw_content}")
-            return 50, "LLM返回格式错误或内容不符合预期。"
-
-    except Exception as e:
-        logger.error(f"调用或解析LLM响应时出错: {e}", exc_info=True)
-        return 50, f"LLM分析服务异常: {e}" # 返回50分和错误信息，确保程序不崩溃
+            logger.error(f"OpenAI返回格式错误，不是预期的JSON字典: {raw_content}")
+            return 50, "OpenAI返回格式错误或内容不符合预期。"
+    except json.JSONDecodeError as e:
+        logger.error(f"OpenAI响应JSON解析失败: {e}, 内容: {raw_content}")
+        return 50, "OpenAI响应解析失败"
