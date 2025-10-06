@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 import json
 import os
 import asyncio
@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import sqlite3
 from contextlib import contextmanager
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # 导入原有的分析模块
 from core.analysis import generate_ai_driven_report, get_detailed_analysis_report_for_debug
@@ -43,6 +44,49 @@ def get_db():
     finally:
         conn.close()
 
+# 认证相关辅助函数
+def create_user(username, password):
+    """创建新用户"""
+    password_hash = generate_password_hash(password)
+    with get_db() as conn:
+        try:
+            conn.execute(
+                'INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                (username, password_hash)
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # 用户名已存在
+
+def verify_user(username, password):
+    """验证用户登录"""
+    with get_db() as conn:
+        user = conn.execute(
+            'SELECT id, username, password_hash FROM users WHERE username = ? AND is_active = 1',
+            (username,)
+        ).fetchone()
+        
+        if user and check_password_hash(user['password_hash'], password):
+            # 更新最后登录时间
+            conn.execute(
+                'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                (user['id'],)
+            )
+            conn.commit()
+            return user
+        return None
+
+def login_required(f):
+    """登录装饰器"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 def init_db():
     """初始化数据库"""
     with get_db() as conn:
@@ -73,6 +117,28 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
+            )
+        ''')
+        
+        # 检查是否需要创建默认管理员用户
+        admin_user = conn.execute('SELECT id FROM users WHERE username = ?', ('admin',)).fetchone()
+        if not admin_user:
+            # 创建默认管理员用户 (用户名: admin, 密码: admin123)
+            default_password_hash = generate_password_hash('admin123')
+            conn.execute(
+                'INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                ('admin', default_password_hash)
+            )
+            logger.info('已创建默认管理员用户: admin (密码: admin123)')
         
         # 插入默认配置
         default_configs = [
@@ -163,12 +229,83 @@ def save_analysis_history(analysis_type, results):
         )
         conn.commit()
 
+# 认证相关路由
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """用户登录"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            flash('请输入用户名和密码')
+            return render_template('login.html')
+        
+        user = verify_user(username, password)
+        if user:
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            flash('登录成功！', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('用户名或密码错误')
+            return render_template('login.html')
+    
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """用户注册"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # 验证输入
+        if not username or not password:
+            flash('请输入用户名和密码')
+            return render_template('register.html')
+        
+        if len(username) < 3 or len(username) > 20:
+            flash('用户名长度必须在3-20个字符之间')
+            return render_template('register.html')
+        
+        if not username.replace('_', '').replace('-', '').isalnum():
+            flash('用户名只能包含字母、数字和下划线')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('密码长度至少需要6个字符')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('两次输入的密码不一致')
+            return render_template('register.html')
+        
+        # 创建用户
+        if create_user(username, password):
+            flash('注册成功！请登录', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('用户名已存在，请选择其他用户名')
+            return render_template('register.html')
+    
+    return render_template('register.html')
+
+@app.route('/logout')
+def logout():
+    """用户登出"""
+    session.clear()
+    flash('已成功登出', 'success')
+    return redirect(url_for('login'))
+
 @app.route('/')
 def index():
     """主页"""
     return render_template('index.html')
 
 @app.route('/config')
+@login_required
 def config_page():
     """配置页面"""
     configs = {}
@@ -180,6 +317,7 @@ def config_page():
     return render_template('config.html', configs=configs)
 
 @app.route('/config', methods=['POST'])
+@login_required
 def update_config():
     """更新配置"""
     try:
@@ -211,6 +349,7 @@ def update_config():
         return redirect(url_for('config_page'))
 
 @app.route('/pools')
+@login_required
 def pools_page():
     """标的池管理页面"""
     etf_pools = get_stock_pools('etf')
@@ -218,6 +357,7 @@ def pools_page():
     return render_template('pools.html', etf_pools=etf_pools, stock_pools=stock_pools)
 
 @app.route('/pools/add', methods=['POST'])
+@login_required
 def add_pool():
     """添加股票到池中"""
     try:
@@ -236,6 +376,7 @@ def add_pool():
     return redirect(url_for('pools_page'))
 
 @app.route('/pools/remove/<int:pool_id>', methods=['POST'])
+@login_required
 def remove_pool(pool_id):
     """从池中移除股票"""
     try:
@@ -285,6 +426,7 @@ def analysis_page():
 #         })
 
 @app.route('/api/analyze/<analysis_type>')
+@login_required
 def api_analyze(analysis_type):
     """API分析接口"""
     try:
@@ -419,6 +561,7 @@ def history_page():
     return render_template('history.html', history=history)
 
 @app.route('/pools/export')
+@login_required
 def export_pools():
     """导出标的池"""
     try:
@@ -447,6 +590,7 @@ def export_pools():
         return redirect(url_for('pools_page'))
 
 @app.route('/pools/import', methods=['POST'])
+@login_required
 def import_pools():
     """导入标的池"""
     try:
