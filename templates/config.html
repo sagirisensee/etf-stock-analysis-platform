@@ -158,7 +158,7 @@
                     支持OpenAI兼容的API服务。推荐服务：
                 </p>
                 <ul class="small">
-                    <li><strong>硅基流动 (免费推荐):</strong> https://api.siliconflow.cn/v1</li>
+                    <li><strong>硅基流动:</strong> https://api.siliconflow.cn/v1</li>
                     <li><strong>Perplexity AI:</strong> https://api.perplexity.ai</li>
                     <li><strong>OpenAI:</strong> https://api.openai.com/v1</li>
                     <li><strong>其他兼容服务:</strong> 请参考服务商文档</li>
@@ -236,18 +236,125 @@
     });
 
     // 表单提交处理
-    document.getElementById('configForm').addEventListener('submit', function(e) {
+    document.getElementById('configForm').addEventListener('submit', async function(e) {
         const modelSelect = document.getElementById('LLM_MODEL_NAME');
         const customModelInput = document.getElementById('customModelName');
         
         console.log('表单提交 - 模型选择框值:', modelSelect.value);
         console.log('表单提交 - 自定义模型输入框值:', customModelInput.value);
         
-        // 如果选择了自定义模型，确保自定义模型名称被正确传递
+        // 如果选择了自定义模型，添加一个隐藏字段来传递自定义模型名称
         if (modelSelect.value === 'custom' && customModelInput.value.trim()) {
-            console.log('检测到自定义模型，保持custom值不变，自定义模型名称:', customModelInput.value.trim());
-            // 不修改modelSelect.value，保持为'custom'，让后端处理
+            console.log('检测到自定义模型，添加隐藏字段传递自定义模型名称:', customModelInput.value.trim());
+            
+            // 移除之前的隐藏字段（如果存在）
+            const existingHidden = document.getElementById('customModelNameHidden');
+            if (existingHidden) {
+                existingHidden.remove();
+            }
+            
+            // 添加隐藏字段传递自定义模型名称
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = 'customModelNameHidden';
+            hiddenInput.name = 'LLM_MODEL_NAME';
+            hiddenInput.value = customModelInput.value.trim();
+            modelSelect.parentNode.appendChild(hiddenInput);
+            
+            // 将模型选择框的值改回 'custom'，保持页面状态
+            modelSelect.value = 'custom';
         }
+        
+        // 等待表单提交完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // 清除测试配置
+        try {
+            await fetch('/api/clear-test-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            console.log('测试配置已清除');
+        } catch (error) {
+            console.error('清除测试配置失败:', error);
+        }
+    });
+
+    // 恢复到测试前状态的函数
+    function restoreFormToOriginalState(originalState) {
+        try {
+            // 恢复表单字段
+            document.getElementById('LLM_API_BASE').value = originalState.apiBase || '';
+            document.getElementById('LLM_API_KEY').value = originalState.apiKey || '';
+            
+            // 处理模型选择
+            if (originalState.selectedModel === 'custom') {
+                // 自定义模型
+                document.getElementById('LLM_MODEL_NAME').value = 'custom';
+                document.getElementById('customModelName').value = originalState.customModelName || '';
+                document.getElementById('customModelRow').style.display = 'block';
+            } else {
+                // 预定义模型
+                document.getElementById('LLM_MODEL_NAME').value = originalState.selectedModel || '';
+                document.getElementById('customModelName').value = '';
+                document.getElementById('customModelRow').style.display = 'none';
+            }
+            
+            console.log('表单已恢复到测试前状态:', originalState);
+        } catch (error) {
+            console.error('恢复表单状态失败:', error);
+        }
+    }
+
+    // 从数据库恢复表单状态的函数
+    async function restoreFormFromDatabase() {
+        try {
+            // 获取数据库中的配置
+            const response = await fetch('/api/config');
+            const data = await response.json();
+            
+            if (data.success) {
+                const configs = data.configs;
+                
+                // 恢复表单字段
+                document.getElementById('LLM_API_BASE').value = configs.LLM_API_BASE || '';
+                document.getElementById('LLM_API_KEY').value = configs.LLM_API_KEY || '';
+                document.getElementById('CACHE_EXPIRE_SECONDS').value = configs.CACHE_EXPIRE_SECONDS || '60';
+                
+                // 处理模型名称
+                const modelName = configs.LLM_MODEL_NAME || '';
+                const predefinedModels = ['Qwen/Qwen3-8B', 'sonar-pro', 'sonar-medium', 'sonar-small', 'llama-3.1-sonar-large-128k-chat', 'llama-3.1-sonar-small-128k-chat', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'];
+                
+                if (predefinedModels.includes(modelName)) {
+                    // 预定义模型
+                    document.getElementById('LLM_MODEL_NAME').value = modelName;
+                    document.getElementById('customModelName').value = '';
+                    document.getElementById('customModelRow').style.display = 'none';
+                } else if (modelName) {
+                    // 自定义模型
+                    document.getElementById('LLM_MODEL_NAME').value = 'custom';
+                    document.getElementById('customModelName').value = modelName;
+                    document.getElementById('customModelRow').style.display = 'block';
+                } else {
+                    // 空值
+                    document.getElementById('LLM_MODEL_NAME').value = '';
+                    document.getElementById('customModelName').value = '';
+                    document.getElementById('customModelRow').style.display = 'none';
+                }
+                
+                console.log('表单已恢复到数据库状态:', configs);
+            }
+        } catch (error) {
+            console.error('恢复表单状态失败:', error);
+        }
+    }
+
+    // 页面加载时确保表单状态正确
+    document.addEventListener('DOMContentLoaded', function() {
+        // 页面加载完成后，确保表单状态与数据库一致
+        console.log('页面加载完成，表单状态已初始化');
     });
 
     // 调试信息功能已注释
@@ -334,14 +441,45 @@
         try {
             const apiBase = document.getElementById('LLM_API_BASE').value;
             const apiKey = document.getElementById('LLM_API_KEY').value;
-            const modelName = document.getElementById('LLM_MODEL_NAME').value;
+            const selectedModel = document.getElementById('LLM_MODEL_NAME').value;
+            const customModelName = document.getElementById('customModelName').value;
+            
+            // 如果选择的是自定义模型，使用自定义模型名称
+            const modelName = selectedModel === 'custom' ? customModelName : selectedModel;
             
             if (!apiBase || !apiKey || !modelName) {
                 showAlert('请先填写完整的配置信息', 'warning');
                 return;
             }
             
-            // 调用后端API进行真实连接测试
+            // 如果选择自定义模型但没有填写自定义模型名称
+            if (selectedModel === 'custom' && !customModelName) {
+                showAlert('请填写自定义模型名称', 'warning');
+                return;
+            }
+            
+            // 先保存测试配置到临时存储
+            const testConfigData = {
+                LLM_API_BASE: apiBase,
+                LLM_API_KEY: apiKey,
+                LLM_MODEL_NAME: modelName,
+                CACHE_EXPIRE_SECONDS: document.getElementById('CACHE_EXPIRE_SECONDS').value
+            };
+            
+            // 保存测试配置
+            const testConfigResponse = await fetch('/api/test-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(testConfigData)
+            });
+            
+            if (!testConfigResponse.ok) {
+                throw new Error('保存测试配置失败');
+            }
+            
+            // 然后进行连接测试
             const response = await fetch('/api/test-connection', {
                 method: 'POST',
                 headers: {
@@ -352,6 +490,8 @@
             const data = await response.json();
             
             if (!data.success) {
+                // 测试失败，从数据库恢复表单状态
+                await restoreFormFromDatabase();
                 throw new Error(data.error);
             }
             
@@ -376,6 +516,7 @@
                         <h6 class="mb-1">连接测试成功！</h6>
                         <small>AI模型配置有效，可以正常使用</small>
                         <br><small class="text-muted">响应: ${data.response || '无响应'}</small>
+                        <br><small class="text-warning">💡 请点击"保存配置"按钮保存设置</small>
                     </div>
                     <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
                 </div>

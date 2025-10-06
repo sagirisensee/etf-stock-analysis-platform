@@ -560,6 +560,31 @@ def config_page():
     
     return render_template('config.html', configs=configs)
 
+@app.route('/api/config')
+@login_required
+def get_user_config_api():
+    """获取用户配置API"""
+    try:
+        user_id = session['user_id']
+        
+        # 获取用户个人配置
+        configs = {}
+        config_keys = ['LLM_API_BASE', 'LLM_API_KEY', 'LLM_MODEL_NAME', 'CACHE_EXPIRE_SECONDS']
+        for key in config_keys:
+            configs[key] = get_user_config(user_id, key, '')
+        
+        return jsonify({
+            "success": True,
+            "configs": configs
+        })
+        
+    except Exception as e:
+        logger.error(f"获取用户配置失败: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": f"获取配置失败: {str(e)}"
+        }), 500
+
 @app.route('/config', methods=['POST'])
 @login_required
 def update_config():
@@ -902,6 +927,42 @@ def clear_all_history():
         logger.error(f"清空历史记录失败: {e}", exc_info=True)
         return jsonify({"success": False, "error": f"清空失败: {str(e)}"}), 500
 
+@app.route('/api/test-config', methods=['POST'])
+@login_required
+def save_test_config():
+    """保存测试配置到临时存储"""
+    try:
+        data = request.get_json()
+        user_id = session.get('user_id')
+        
+        # 保存到临时测试配置
+        test_configs = {
+            'LLM_API_BASE': data.get('LLM_API_BASE', ''),
+            'LLM_API_KEY': data.get('LLM_API_KEY', ''),
+            'LLM_MODEL_NAME': data.get('LLM_MODEL_NAME', ''),
+            'CACHE_EXPIRE_SECONDS': data.get('CACHE_EXPIRE_SECONDS', '60')
+        }
+        
+        # 使用session存储测试配置
+        session['test_config'] = test_configs
+        
+        return jsonify({"success": True, "message": "测试配置已保存"})
+    except Exception as e:
+        logger.error(f"保存测试配置失败: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/clear-test-config', methods=['POST'])
+@login_required
+def clear_test_config():
+    """清除测试配置"""
+    try:
+        # 清除session中的测试配置
+        session.pop('test_config', None)
+        return jsonify({"success": True, "message": "测试配置已清除"})
+    except Exception as e:
+        logger.error(f"清除测试配置失败: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/api/test-connection', methods=['POST'])
 @login_required
 def test_api_connection():
@@ -909,10 +970,19 @@ def test_api_connection():
     try:
         user_id = session['user_id']
         
-        # 获取用户配置
-        api_base = get_user_config(user_id, 'LLM_API_BASE')
-        api_key = get_user_config(user_id, 'LLM_API_KEY')
-        model_name = get_user_config(user_id, 'LLM_MODEL_NAME')
+        # 优先使用测试配置，如果没有则使用数据库配置
+        test_config = session.get('test_config')
+        if test_config:
+            api_base = test_config.get('LLM_API_BASE')
+            api_key = test_config.get('LLM_API_KEY')
+            model_name = test_config.get('LLM_MODEL_NAME')
+            logger.info(f"使用测试配置进行连接测试: {model_name}")
+        else:
+            # 获取用户配置
+            api_base = get_user_config(user_id, 'LLM_API_BASE')
+            api_key = get_user_config(user_id, 'LLM_API_KEY')
+            model_name = get_user_config(user_id, 'LLM_MODEL_NAME')
+            logger.info(f"使用数据库配置进行连接测试: {model_name}")
         
         if not api_base or not api_key or not model_name:
             return jsonify({
@@ -944,6 +1014,7 @@ def test_api_connection():
         
         async def test_request():
             try:
+                logger.info(f"发送API测试请求: model={model_name}, base_url={api_base}")
                 response = await asyncio.to_thread(
                     client.chat.completions.create,
                     model=model_name,
@@ -952,8 +1023,10 @@ def test_api_connection():
                     ],
                     max_tokens=10
                 )
+                logger.info(f"API测试请求成功: {response.choices[0].message.content}")
                 return response.choices[0].message.content
             except Exception as e:
+                logger.error(f"API测试请求失败: {e}")
                 # 解析API错误信息
                 error_msg = str(e).lower()
                 error_type = type(e).__name__
@@ -987,6 +1060,13 @@ def test_api_connection():
                 "message": "API连接测试成功",
                 "response": result[:100] if result else "无响应"
             })
+        except Exception as e:
+            # 如果test_request内部抛出异常，这里会捕获到
+            logger.error(f"API测试请求失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": f"连接测试失败: {str(e)}"
+            }), 500
         finally:
             loop.close()
             
