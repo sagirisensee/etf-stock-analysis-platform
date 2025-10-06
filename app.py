@@ -808,6 +808,45 @@ def history_page():
     history = get_user_analysis_history(user_id, 50)
     return render_template('history.html', history=history)
 
+@app.route('/api/history/<int:record_id>')
+@login_required
+def get_history_detail(record_id):
+    """获取历史记录详情"""
+    try:
+        user_id = session['user_id']
+        
+        # 从数据库获取历史记录详情
+        with get_db() as conn:
+            result = conn.execute(
+                'SELECT * FROM analysis_history WHERE id = ? AND user_id = ?',
+                (record_id, user_id)
+            ).fetchone()
+            
+            if not result:
+                return jsonify({"success": False, "error": "记录不存在"}), 404
+            
+            # 解析结果数据
+            import json
+            try:
+                results_data = json.loads(result['results']) if result['results'] else []
+            except:
+                results_data = []
+            
+            return jsonify({
+                "success": True,
+                "data": {
+                    "id": result['id'],
+                    "analysis_type": result['analysis_type'],
+                    "created_at": result['created_at'],
+                    "results": results_data,
+                    "total_count": len(results_data)
+                }
+            })
+            
+    except Exception as e:
+        logger.error(f"获取历史记录详情失败: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"获取详情失败: {str(e)}"}), 500
+
 @app.route('/pools/export')
 @login_required
 def export_pools():

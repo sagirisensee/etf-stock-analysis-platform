@@ -217,40 +217,179 @@
 
     // 查看历史详情
     function viewHistory(recordId) {
-        // 这里应该从后端获取详细数据
-        // 暂时使用模拟数据
         const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+        const content = document.getElementById('historyDetailContent');
         
-        // 模拟加载数据
-        setTimeout(() => {
-            const content = document.getElementById('historyDetailContent');
-            content.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-1"></i>
-                    历史记录详情功能正在开发中，记录ID: ${recordId}
+        // 显示加载状态
+        content.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
                 </div>
-                <p>这里将显示完整的分析结果，包括：</p>
-                <ul>
-                    <li>详细的AI评分和点评</li>
-                    <li>技术指标分析</li>
-                    <li>市场数据快照</li>
-                    <li>分析参数配置</li>
-                </ul>
-            `;
-        }, 1000);
+                <p class="mt-2">正在加载分析详情...</p>
+            </div>
+        `;
         
         modal.show();
+        
+        // 从后端获取详细数据
+        fetch(`/api/history/${recordId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentHistoryData = data.data;
+                    displayHistoryDetail(data.data);
+                } else {
+                    content.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            加载失败: ${data.error}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('获取历史详情失败:', error);
+                content.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        网络错误，请稍后重试
+                    </div>
+                `;
+            });
+    }
+    
+    // 显示历史详情
+    function displayHistoryDetail(data) {
+        const content = document.getElementById('historyDetailContent');
+        
+        let html = `
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-calendar me-1"></i>分析时间</h6>
+                    <p class="text-muted">${new Date(data.created_at).toLocaleString()}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-chart-bar me-1"></i>分析类型</h6>
+                    <span class="badge ${data.analysis_type === 'etf' ? 'bg-primary' : 'bg-success'}">
+                        ${data.analysis_type === 'etf' ? 'ETF分析' : '股票分析'}
+                    </span>
+                </div>
+            </div>
+            <hr>
+            <h6><i class="fas fa-list me-1"></i>分析结果 (${data.total_count} 个标的)</h6>
+        `;
+        
+        if (data.results && data.results.length > 0) {
+            data.results.forEach((item, index) => {
+                const score = item.ai_score || 0;
+                const comment = item.ai_comment || '暂无点评';
+                const status = item.status || '未知状态';
+                
+                // 根据评分确定颜色
+                let scoreClass = 'text-muted';
+                if (score >= 70) scoreClass = 'text-success';
+                else if (score >= 50) scoreClass = 'text-warning';
+                else if (score > 0) scoreClass = 'text-danger';
+                
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-2">
+                                    <div class="text-center">
+                                        <div class="h4 ${scoreClass}">${score}</div>
+                                        <small class="text-muted">AI评分</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">${item.name || '未知'}</h6>
+                                    <small class="text-muted">${item.code || ''}</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="badge ${status.includes('强势') ? 'bg-success' : status.includes('弱势') ? 'bg-danger' : 'bg-warning'}">
+                                        ${status}
+                                    </span>
+                                </div>
+                                <div class="col-md-5">
+                                    <p class="mb-0 small">${comment}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html += `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>
+                    暂无分析结果数据
+                </div>
+            `;
+        }
+        
+        content.innerHTML = html;
     }
 
     // 下载历史记录
     function downloadHistory(recordId) {
-        // 模拟下载
-        showAlert(`正在下载记录 ${recordId}...`, 'info');
+        if (currentHistoryData && currentHistoryData.id === recordId) {
+            // 下载当前查看的记录
+            downloadCurrentHistory();
+        } else {
+            // 先获取记录详情，然后下载
+            fetch(`/api/history/${recordId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentHistoryData = data.data;
+                        downloadCurrentHistory();
+                    } else {
+                        showAlert(`获取记录详情失败: ${data.error}`, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取历史详情失败:', error);
+                    showAlert('网络错误，请稍后重试', 'danger');
+                });
+        }
+    }
+    
+    // 下载当前历史记录
+    function downloadCurrentHistory() {
+        if (!currentHistoryData) {
+            showAlert('没有可下载的数据', 'warning');
+            return;
+        }
         
-        // 这里应该调用后端API下载数据
-        setTimeout(() => {
+        try {
+            // 准备下载数据
+            const downloadData = {
+                analysis_type: currentHistoryData.analysis_type,
+                created_at: currentHistoryData.created_at,
+                total_count: currentHistoryData.total_count,
+                results: currentHistoryData.results
+            };
+            
+            // 创建下载链接
+            const dataStr = JSON.stringify(downloadData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            // 创建下载链接并触发下载
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `analysis_${currentHistoryData.analysis_type}_${currentHistoryData.id}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
             showAlert('下载完成！', 'success');
-        }, 2000);
+        } catch (error) {
+            console.error('下载失败:', error);
+            showAlert('下载失败，请稍后重试', 'danger');
+        }
     }
 
     // 删除历史记录
