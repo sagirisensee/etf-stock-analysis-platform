@@ -87,8 +87,195 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_user_config(user_id, key, default=None):
+    """获取用户个人配置"""
+    with get_db() as conn:
+        result = conn.execute(
+            'SELECT config_value FROM user_configs WHERE user_id = ? AND config_key = ?', 
+            (user_id, key)
+        ).fetchone()
+        return result['config_value'] if result else default
+
+def set_user_config(user_id, key, value):
+    """设置用户个人配置"""
+    with get_db() as conn:
+        conn.execute(
+            'INSERT OR REPLACE INTO user_configs (user_id, config_key, config_value, updated_at) VALUES (?, ?, ?, ?)',
+            (user_id, key, value, datetime.now())
+        )
+        conn.commit()
+
+def get_user_stock_pools(user_id, pool_type=None):
+    """获取用户个人标的池"""
+    with get_db() as conn:
+        if pool_type:
+            results = conn.execute(
+                'SELECT * FROM stock_pools WHERE user_id = ? AND type = ? ORDER BY created_at DESC',
+                (user_id, pool_type)
+            ).fetchall()
+        else:
+            results = conn.execute(
+                'SELECT * FROM stock_pools WHERE user_id = ? ORDER BY created_at DESC',
+                (user_id,)
+            ).fetchall()
+        return [dict(row) for row in results]
+
+def add_to_user_pool(user_id, name, pool_type, code):
+    """添加标的到用户个人池中"""
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO stock_pools (user_id, name, type, code) VALUES (?, ?, ?, ?)',
+            (user_id, name, pool_type, code)
+        )
+        conn.commit()
+
+def remove_from_user_pool(user_id, pool_id):
+    """从用户个人池中移除标的"""
+    with get_db() as conn:
+        conn.execute(
+            'DELETE FROM stock_pools WHERE id = ? AND user_id = ?',
+            (pool_id, user_id)
+        )
+        conn.commit()
+
+def save_user_analysis_history(user_id, analysis_type, results):
+    """保存用户个人分析历史"""
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO analysis_history (user_id, analysis_type, results) VALUES (?, ?, ?)',
+            (user_id, analysis_type, json.dumps(results, ensure_ascii=False))
+        )
+        conn.commit()
+
+def get_user_analysis_history(user_id, limit=50):
+    """获取用户个人分析历史"""
+    with get_db() as conn:
+        results = conn.execute(
+            'SELECT * FROM analysis_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+            (user_id, limit)
+        ).fetchall()
+        return [dict(row) for row in results]
+
+def migrate_database():
+    """迁移数据库结构"""
+    with get_db() as conn:
+        # 检查是否需要迁移
+        try:
+            # 检查user_configs表是否存在
+            conn.execute('SELECT 1 FROM user_configs LIMIT 1')
+            # 如果执行到这里，说明表已存在，不需要迁移
+            return
+        except sqlite3.OperationalError:
+            # 表不存在，需要迁移
+            print("开始数据库迁移...")
+            
+            # 备份现有数据
+            try:
+                # 检查并备份现有数据
+                old_pools = []
+                old_configs = []
+                old_history = []
+                
+                try:
+                    old_pools = conn.execute('SELECT * FROM stock_pools').fetchall()
+                except sqlite3.OperationalError:
+                    pass  # 表不存在
+                
+                try:
+                    old_configs = conn.execute('SELECT * FROM config').fetchall()
+                except sqlite3.OperationalError:
+                    pass  # 表不存在
+                
+                try:
+                    old_history = conn.execute('SELECT * FROM analysis_history').fetchall()
+                except sqlite3.OperationalError:
+                    pass  # 表不存在
+                
+                # 删除旧表
+                conn.execute('DROP TABLE IF EXISTS stock_pools')
+                conn.execute('DROP TABLE IF EXISTS analysis_history')
+                
+                # 重新创建表结构
+                conn.execute('''
+                    CREATE TABLE stock_pools (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL CHECK (type IN ('etf', 'stock')),
+                        code TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                conn.execute('''
+                    CREATE TABLE analysis_history (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        analysis_type TEXT NOT NULL,
+                        results TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                # 创建user_configs表
+                conn.execute('''
+                    CREATE TABLE user_configs (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        config_key TEXT NOT NULL,
+                        config_value TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                        UNIQUE(user_id, config_key)
+                    )
+                ''')
+                
+                # 迁移数据到admin用户（如果admin用户存在）
+                try:
+                    admin_user = conn.execute('SELECT id FROM users WHERE username = ?', ('admin',)).fetchone()
+                    if admin_user:
+                        admin_id = admin_user['id']
+                        
+                        # 迁移标的池数据
+                        for pool in old_pools:
+                            conn.execute(
+                                'INSERT INTO stock_pools (id, user_id, name, type, code, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                                (pool[0], admin_id, pool[1], pool[2], pool[3], pool[4])
+                            )
+                        
+                        # 迁移分析历史数据
+                        for history in old_history:
+                            conn.execute(
+                                'INSERT INTO analysis_history (id, user_id, analysis_type, results, created_at) VALUES (?, ?, ?, ?, ?)',
+                                (history[0], admin_id, history[1], history[2], history[3])
+                            )
+                        
+                        # 迁移配置数据到admin用户
+                        for config in old_configs:
+                            conn.execute(
+                                'INSERT INTO user_configs (user_id, config_key, config_value) VALUES (?, ?, ?)',
+                                (admin_id, config[1], config[2])
+                            )
+                except sqlite3.OperationalError:
+                    # users表不存在，跳过数据迁移
+                    pass
+                
+                conn.commit()
+                print("✅ 数据库迁移完成")
+                
+            except Exception as e:
+                print(f"❌ 数据库迁移失败: {e}")
+                conn.rollback()
+                raise
+
 def init_db():
     """初始化数据库"""
+    # 先执行数据库迁移
+    migrate_database()
+    
     with get_db() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS config (
@@ -102,19 +289,23 @@ def init_db():
         conn.execute('''
             CREATE TABLE IF NOT EXISTS stock_pools (
                 id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 type TEXT NOT NULL CHECK (type IN ('etf', 'stock')),
                 code TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         ''')
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS analysis_history (
                 id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
                 analysis_type TEXT NOT NULL,
                 results TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         ''')
         
@@ -129,16 +320,68 @@ def init_db():
             )
         ''')
         
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_configs (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                config_key TEXT NOT NULL,
+                config_value TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                UNIQUE(user_id, config_key)
+            )
+        ''')
+        
         # 检查是否需要创建默认管理员用户
         admin_user = conn.execute('SELECT id FROM users WHERE username = ?', ('admin',)).fetchone()
         if not admin_user:
             # 创建默认管理员用户 (用户名: admin, 密码: admin123)
             default_password_hash = generate_password_hash('admin123')
-            conn.execute(
+            cursor = conn.execute(
                 'INSERT INTO users (username, password_hash) VALUES (?, ?)',
                 ('admin', default_password_hash)
             )
+            admin_id = cursor.lastrowid
             logger.info('已创建默认管理员用户: admin (密码: admin123)')
+            
+            # 为admin用户创建默认个人配置
+            default_user_configs = [
+                ('LLM_API_BASE', ''),
+                ('LLM_API_KEY', ''),
+                ('LLM_MODEL_NAME', 'Qwen/Qwen3-8B'),
+                ('CACHE_EXPIRE_SECONDS', '60')
+            ]
+            
+            for key, value in default_user_configs:
+                conn.execute(
+                    'INSERT INTO user_configs (user_id, config_key, config_value) VALUES (?, ?, ?)',
+                    (admin_id, key, value)
+                )
+            logger.info('已为admin用户创建默认个人配置')
+        else:
+            # 如果admin用户已存在，检查是否有个人配置，如果没有则创建
+            admin_id = admin_user['id']
+            existing_config = conn.execute(
+                'SELECT 1 FROM user_configs WHERE user_id = ? LIMIT 1', 
+                (admin_id,)
+            ).fetchone()
+            
+            if not existing_config:
+                # 为现有admin用户创建默认个人配置
+                default_user_configs = [
+                    ('LLM_API_BASE', ''),
+                    ('LLM_API_KEY', ''),
+                    ('LLM_MODEL_NAME', 'Qwen/Qwen3-8B'),
+                    ('CACHE_EXPIRE_SECONDS', '60')
+                ]
+                
+                for key, value in default_user_configs:
+                    conn.execute(
+                        'INSERT INTO user_configs (user_id, config_key, config_value) VALUES (?, ?, ?)',
+                        (admin_id, key, value)
+                    )
+                logger.info('已为现有admin用户创建默认个人配置')
         
         # 插入默认配置
         default_configs = [
@@ -308,11 +551,12 @@ def index():
 @login_required
 def config_page():
     """配置页面"""
+    user_id = session['user_id']
     configs = {}
     config_keys = ['LLM_API_BASE', 'LLM_API_KEY', 'LLM_MODEL_NAME', 'CACHE_EXPIRE_SECONDS']
     
     for key in config_keys:
-        configs[key] = get_config(key, '')
+        configs[key] = get_user_config(user_id, key, '')
     
     return render_template('config.html', configs=configs)
 
@@ -321,6 +565,8 @@ def config_page():
 def update_config():
     """更新配置"""
     try:
+        user_id = session['user_id']
+        
         # 处理模型名称
         model_name = request.form.get('LLM_MODEL_NAME', '')
         custom_model_name = request.form.get('customModelName', '')
@@ -329,7 +575,7 @@ def update_config():
         if model_name == 'custom' and custom_model_name.strip():
             model_name = custom_model_name.strip()
         
-        # 更新配置
+        # 更新用户个人配置
         config_data = {
             'LLM_API_BASE': request.form.get('LLM_API_BASE', ''),
             'LLM_API_KEY': request.form.get('LLM_API_KEY', ''),
@@ -338,11 +584,11 @@ def update_config():
         }
         
         for key, value in config_data.items():
-            set_config(key, value)
-            # 更新环境变量
+            set_user_config(user_id, key, value)
+            # 更新环境变量（仅当前会话）
             os.environ[key] = value
         
-        flash('配置更新成功！', 'success')
+        flash('个人配置更新成功！', 'success')
         return redirect(url_for('config_page'))
     except Exception as e:
         flash(f'配置更新失败：{str(e)}', 'error')
@@ -352,8 +598,9 @@ def update_config():
 @login_required
 def pools_page():
     """标的池管理页面"""
-    etf_pools = get_stock_pools('etf')
-    stock_pools = get_stock_pools('stock')
+    user_id = session['user_id']
+    etf_pools = get_user_stock_pools(user_id, 'etf')
+    stock_pools = get_user_stock_pools(user_id, 'stock')
     return render_template('pools.html', etf_pools=etf_pools, stock_pools=stock_pools)
 
 @app.route('/pools/add', methods=['POST'])
@@ -361,6 +608,7 @@ def pools_page():
 def add_pool():
     """添加股票到池中"""
     try:
+        user_id = session['user_id']
         name = request.form.get('name')
         pool_type = request.form.get('type')
         code = request.form.get('code')
@@ -368,8 +616,8 @@ def add_pool():
         if not all([name, pool_type, code]):
             flash('请填写完整信息', 'error')
         else:
-            add_to_pool(name, pool_type, code)
-            flash(f'成功添加 {name} 到{pool_type}池', 'success')
+            add_to_user_pool(user_id, name, pool_type, code)
+            flash(f'成功添加 {name} 到个人{pool_type}池', 'success')
     except Exception as e:
         flash(f'添加失败：{str(e)}', 'error')
     
@@ -380,7 +628,8 @@ def add_pool():
 def remove_pool(pool_id):
     """从池中移除股票"""
     try:
-        remove_from_pool(pool_id)
+        user_id = session['user_id']
+        remove_from_user_pool(user_id, pool_id)
         flash('移除成功', 'success')
     except Exception as e:
         flash(f'移除失败：{str(e)}', 'error')
@@ -430,10 +679,12 @@ def analysis_page():
 def api_analyze(analysis_type):
     """API分析接口"""
     try:
-        # 检查AI API配置是否完整
-        llm_api_base = get_config('LLM_API_BASE')
-        llm_api_key = get_config('LLM_API_KEY')
-        llm_model_name = get_config('LLM_MODEL_NAME')
+        user_id = session['user_id']
+        
+        # 检查用户个人AI API配置是否完整
+        llm_api_base = get_user_config(user_id, 'LLM_API_BASE')
+        llm_api_key = get_user_config(user_id, 'LLM_API_KEY')
+        llm_model_name = get_user_config(user_id, 'LLM_MODEL_NAME')
         
         if not llm_api_base or not llm_api_key or not llm_model_name:
             missing_configs = []
@@ -444,17 +695,17 @@ def api_analyze(analysis_type):
             if not llm_model_name:
                 missing_configs.append("AI模型名称")
             
-            error_message = f"AI API配置不完整，请前往系统配置页面填写：{', '.join(missing_configs)}"
+            error_message = f"个人AI API配置不完整，请前往配置页面填写：{', '.join(missing_configs)}"
             return jsonify({"success": False, "error": error_message})
         
         # 更新环境变量
         for key in ['LLM_API_BASE', 'LLM_API_KEY', 'LLM_MODEL_NAME', 'CACHE_EXPIRE_SECONDS']:
-            value = get_config(key)
+            value = get_user_config(user_id, key)
             if value:
                 os.environ[key] = value
         
         if analysis_type == 'etf':
-            pools = get_stock_pools('etf')
+            pools = get_user_stock_pools(user_id, 'etf')
             if not pools:
                 return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
@@ -470,9 +721,9 @@ def api_analyze(analysis_type):
                 loop.close()
                 
         elif analysis_type == 'stock':
-            pools = get_stock_pools('stock')
+            pools = get_user_stock_pools(user_id, 'stock')
             if not pools:
-                return jsonify({"success": False, "error": "股票标的池为空，请先添加股票标的"})
+                return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
             # 运行异步分析
@@ -486,9 +737,9 @@ def api_analyze(analysis_type):
                 loop.close()
                 
         elif analysis_type == 'etf_debug':
-            pools = get_stock_pools('etf')
+            pools = get_user_stock_pools(user_id, 'etf')
             if not pools:
-                return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
+                return jsonify({"success": False, "error": "个人ETF标的池为空，请先添加ETF标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
             # 调试模式调用异步函数
@@ -507,9 +758,9 @@ def api_analyze(analysis_type):
                 loop.close()
                 
         elif analysis_type == 'stock_debug':
-            pools = get_stock_pools('stock')
+            pools = get_user_stock_pools(user_id, 'stock')
             if not pools:
-                return jsonify({"success": False, "error": "股票标的池为空，请先添加股票标的"})
+                return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
             core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
             
             # 调试模式调用异步函数
@@ -537,7 +788,7 @@ def api_analyze(analysis_type):
             })
         
         # 保存分析历史
-        save_analysis_history(analysis_type, results)
+        save_user_analysis_history(user_id, analysis_type, results)
         
         return jsonify({
             'success': True,
@@ -550,14 +801,11 @@ def api_analyze(analysis_type):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/history')
+@login_required
 def history_page():
     """历史记录页面"""
-    with get_db() as conn:
-        results = conn.execute(
-            'SELECT * FROM analysis_history ORDER BY created_at DESC LIMIT 50'
-        ).fetchall()
-        history = [dict(row) for row in results]
-    
+    user_id = session['user_id']
+    history = get_user_analysis_history(user_id, 50)
     return render_template('history.html', history=history)
 
 @app.route('/pools/export')
@@ -565,8 +813,9 @@ def history_page():
 def export_pools():
     """导出标的池"""
     try:
-        etf_pools = get_stock_pools('etf')
-        stock_pools = get_stock_pools('stock')
+        user_id = session['user_id']
+        etf_pools = get_user_stock_pools(user_id, 'etf')
+        stock_pools = get_user_stock_pools(user_id, 'stock')
         
         export_data = {
             'export_time': datetime.now().isoformat(),
@@ -616,24 +865,24 @@ def import_pools():
             flash('文件格式不正确，缺少必要字段', 'error')
             return redirect(url_for('pools_page'))
         
-        # 导入数据
+        # 导入数据到用户个人池
+        user_id = session['user_id']
         imported_count = 0
         skipped_count = 0
         
         for etf in import_data.get('etf_pools', []):
             if 'name' in etf and 'code' in etf:
                 try:
-                    add_to_pool(etf['name'], 'etf', etf['code'])
+                    add_to_user_pool(user_id, etf['name'], 'etf', etf['code'])
                     imported_count += 1
-                except ValueError:
-                    skipped_count += 1  # 重复数据
                 except Exception as e:
                     logger.warning(f"导入ETF失败: {e}")
+                    skipped_count += 1
         
         for stock in import_data.get('stock_pools', []):
             if 'name' in stock and 'code' in stock:
                 try:
-                    add_to_pool(stock['name'], 'stock', stock['code'])
+                    add_to_user_pool(user_id, stock['name'], 'stock', stock['code'])
                     imported_count += 1
                 except ValueError:
                     skipped_count += 1  # 重复数据
