@@ -847,6 +847,132 @@ def get_history_detail(record_id):
         logger.error(f"获取历史记录详情失败: {e}", exc_info=True)
         return jsonify({"success": False, "error": f"获取详情失败: {str(e)}"}), 500
 
+@app.route('/api/history/<int:record_id>', methods=['DELETE'])
+@login_required
+def delete_history_record(record_id):
+    """删除历史记录"""
+    try:
+        user_id = session['user_id']
+        
+        with get_db() as conn:
+            # 检查记录是否存在且属于当前用户
+            result = conn.execute(
+                'SELECT id FROM analysis_history WHERE id = ? AND user_id = ?',
+                (record_id, user_id)
+            ).fetchone()
+            
+            if not result:
+                return jsonify({"success": False, "error": "记录不存在或无权限删除"}), 404
+            
+            # 删除记录
+            conn.execute(
+                'DELETE FROM analysis_history WHERE id = ? AND user_id = ?',
+                (record_id, user_id)
+            )
+            conn.commit()
+            
+            return jsonify({"success": True, "message": "记录已删除"})
+            
+    except Exception as e:
+        logger.error(f"删除历史记录失败: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"删除失败: {str(e)}"}), 500
+
+@app.route('/api/history/clear', methods=['DELETE'])
+@login_required
+def clear_all_history():
+    """清空所有历史记录"""
+    try:
+        user_id = session['user_id']
+        
+        with get_db() as conn:
+            # 删除当前用户的所有历史记录
+            cursor = conn.execute(
+                'DELETE FROM analysis_history WHERE user_id = ?',
+                (user_id,)
+            )
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            return jsonify({
+                "success": True, 
+                "message": f"已清空 {deleted_count} 条历史记录"
+            })
+            
+    except Exception as e:
+        logger.error(f"清空历史记录失败: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"清空失败: {str(e)}"}), 500
+
+@app.route('/api/test-connection', methods=['POST'])
+@login_required
+def test_api_connection():
+    """测试API连接"""
+    try:
+        user_id = session['user_id']
+        
+        # 获取用户配置
+        api_base = get_user_config(user_id, 'LLM_API_BASE')
+        api_key = get_user_config(user_id, 'LLM_API_KEY')
+        model_name = get_user_config(user_id, 'LLM_MODEL_NAME')
+        
+        if not api_base or not api_key or not model_name:
+            return jsonify({
+                "success": False, 
+                "error": "请先配置完整的API信息"
+            }), 400
+        
+        # 临时设置环境变量
+        os.environ['LLM_API_BASE'] = api_base
+        os.environ['LLM_API_KEY'] = api_key
+        os.environ['LLM_MODEL_NAME'] = model_name
+        
+        # 导入LLM分析器进行测试
+        from core.llm_analyzer import _get_openai_client
+        
+        # 获取客户端
+        client = _get_openai_client()
+        if not client:
+            return jsonify({
+                "success": False,
+                "error": "无法初始化API客户端"
+            }), 500
+        
+        # 发送测试请求
+        import asyncio
+        
+        async def test_request():
+            try:
+                response = await asyncio.to_thread(
+                    client.chat.completions.create,
+                    model=model_name,
+                    messages=[
+                        {"role": "user", "content": "Hello, this is a test message. Please respond with 'OK'."}
+                    ],
+                    max_tokens=10
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                raise e
+        
+        # 运行测试
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(test_request())
+            return jsonify({
+                "success": True,
+                "message": "API连接测试成功",
+                "response": result[:100] if result else "无响应"
+            })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"API连接测试失败: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": f"连接测试失败: {str(e)}"
+        }), 500
+
 @app.route('/pools/export')
 @login_required
 def export_pools():

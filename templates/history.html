@@ -395,23 +395,64 @@
     // 删除历史记录
     function deleteHistory(recordId) {
         if (confirm('确定要删除这条分析记录吗？此操作不可撤销。')) {
-            // 这里应该调用后端API删除数据
-            showAlert('记录已删除', 'success');
-            
-            // 移除DOM元素
-            const historyItem = document.querySelector(`[onclick="viewHistory(${recordId})"]`).closest('.history-item');
-            if (historyItem) {
-                historyItem.remove();
-            }
+            // 调用后端API删除数据
+            fetch(`/api/history/${recordId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    
+                    // 移除DOM元素
+                    const historyItem = document.querySelector(`[onclick="viewHistory(${recordId})"]`).closest('.history-item');
+                    if (historyItem) {
+                        historyItem.remove();
+                    }
+                } else {
+                    showAlert(`删除失败: ${data.error}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('删除历史记录失败:', error);
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
         }
     }
 
     // 清空所有历史
     function clearHistory() {
         if (confirm('确定要清空所有分析历史吗？此操作不可撤销。')) {
-            // 这里应该调用后端API清空数据
-            showAlert('所有历史记录已清空', 'success');
-            location.reload();
+            // 调用后端API清空数据
+            fetch('/api/history/clear', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    // 清空页面内容
+                    document.getElementById('historyList').innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无分析历史</h5>
+                            <p class="text-muted">开始您的第一次分析吧！</p>
+                        </div>
+                    `;
+                } else {
+                    showAlert(`清空失败: ${data.error}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('清空历史记录失败:', error);
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
         }
     }
 

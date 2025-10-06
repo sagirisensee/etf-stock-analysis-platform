@@ -331,9 +331,19 @@
                 return;
             }
             
-            // 这里可以添加实际的连接测试逻辑
-            // 暂时模拟测试
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 调用后端API进行真实连接测试
+            const response = await fetch('/api/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error);
+            }
             
             // 显示更显眼的成功提示
             const successAlert = document.createElement('div');
@@ -355,6 +365,7 @@
                     <div>
                         <h6 class="mb-1">连接测试成功！</h6>
                         <small>AI模型配置有效，可以正常使用</small>
+                        <br><small class="text-muted">响应: ${data.response || '无响应'}</small>
                     </div>
                     <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
                 </div>
