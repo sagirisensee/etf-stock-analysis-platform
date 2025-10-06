@@ -102,31 +102,21 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         
         # 根据API提供商添加不同的参数
         if api_provider == "perplexity":
-            # Perplexity AI 特殊处理
+            # Perplexity AI 不使用response_format
             request_params.update({
                 "max_tokens": 1000,
                 "temperature": 0.7,
                 "top_p": 0.9
             })
-            logger.info("使用Perplexity AI格式请求")
+            logger.info("使用Perplexity AI格式请求（无response_format）")
         else:
-            # OpenAI 兼容格式
+            # OpenAI 使用json_object格式
             request_params.update({
                 "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "score": {"type": "number", "description": "0到100分的综合评分"},
-                                "comment": {"type": "string", "description": "一段流畅的、总结性的自然语言交易点评"}
-                            },
-                            "required": ["score", "comment"]
-                        }
-                    }
+                    "type": "json_object"
                 }
             })
-            logger.info("使用OpenAI兼容格式请求")
+            logger.info("使用OpenAI格式请求（json_object）")
         
         response = await asyncio.to_thread(
             current_client.chat.completions.create,

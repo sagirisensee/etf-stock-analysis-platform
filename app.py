@@ -708,7 +708,7 @@ def api_analyze(analysis_type):
             pools = get_user_stock_pools(user_id, 'etf')
             if not pools:
                 return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
-            core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
+            core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'etf'} for p in pools]
             
             # 运行异步分析
             loop = asyncio.new_event_loop()
@@ -724,7 +724,7 @@ def api_analyze(analysis_type):
             pools = get_user_stock_pools(user_id, 'stock')
             if not pools:
                 return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
-            core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
+            core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'stock'} for p in pools]
             
             # 运行异步分析
             loop = asyncio.new_event_loop()
