@@ -59,12 +59,22 @@
                                 </label>
                                 <select class="form-select" id="LLM_MODEL_NAME" name="LLM_MODEL_NAME" required>
                                     <option value="" {{ 'selected' if not configs.LLM_MODEL_NAME or configs.LLM_MODEL_NAME == '' }}>请选择模型</option>
-                                    <option value="Qwen/Qwen3-8B" {{ 'selected' if configs.LLM_MODEL_NAME == 'Qwen/Qwen3-8B' }}>硅基流动 Qwen3-8B (免费推荐)</option>
-                                    <option value="sonar-pro" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-pro' }}>Perplexity Sonar Pro</option>
-                                    <option value="gpt-4" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-4' }}>OpenAI GPT-4</option>
-                                    <option value="gpt-3.5-turbo" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-3.5-turbo' }}>OpenAI GPT-3.5 Turbo</option>
-                                    <option value="claude-3-sonnet" {{ 'selected' if configs.LLM_MODEL_NAME == 'claude-3-sonnet' }}>Claude 3 Sonnet</option>
-                                    <option value="custom" {{ 'selected' if configs.LLM_MODEL_NAME and configs.LLM_MODEL_NAME not in ['Qwen/Qwen3-8B', 'sonar-pro', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] }}>自定义模型</option>
+                                    <optgroup label="常用模型">
+                                        <option value="sonar-pro" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-pro' }}>Perplexity Sonar Pro</option>
+                                        <option value="gpt-4" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-4' }}>OpenAI GPT-4</option>
+                                        <option value="gpt-3.5-turbo" {{ 'selected' if configs.LLM_MODEL_NAME == 'gpt-3.5-turbo' }}>OpenAI GPT-3.5 Turbo</option>
+                                        <option value="Qwen/Qwen3-8B" {{ 'selected' if configs.LLM_MODEL_NAME == 'Qwen/Qwen3-8B' }}>硅基流动 Qwen3-8B (免费)</option>
+                                    </optgroup>
+                                    <optgroup label="Perplexity AI">
+                                        <option value="sonar-medium" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-medium' }}>Sonar Medium</option>
+                                        <option value="sonar-small" {{ 'selected' if configs.LLM_MODEL_NAME == 'sonar-small' }}>Sonar Small</option>
+                                        <option value="llama-3.1-sonar-large-128k-chat" {{ 'selected' if configs.LLM_MODEL_NAME == 'llama-3.1-sonar-large-128k-chat' }}>Llama 3.1 Sonar Large (128k)</option>
+                                        <option value="llama-3.1-sonar-small-128k-chat" {{ 'selected' if configs.LLM_MODEL_NAME == 'llama-3.1-sonar-small-128k-chat' }}>Llama 3.1 Sonar Small (128k)</option>
+                                    </optgroup>
+                                    <optgroup label="其他服务">
+                                        <option value="claude-3-sonnet" {{ 'selected' if configs.LLM_MODEL_NAME == 'claude-3-sonnet' }}>Claude 3 Sonnet</option>
+                                    </optgroup>
+                                    <option value="custom" {{ 'selected' if configs.LLM_MODEL_NAME and configs.LLM_MODEL_NAME not in ['Qwen/Qwen3-8B', 'sonar-pro', 'sonar-medium', 'sonar-small', 'llama-3.1-sonar-large-128k-chat', 'llama-3.1-sonar-small-128k-chat', 'gpt-4', 'gpt-3.5-turbo', 'claude-3-sonnet'] }}>自定义模型</option>
                                 </select>
                                 <div class="form-text">
                                     选择您要使用的AI模型

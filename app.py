@@ -936,6 +936,9 @@ def test_api_connection():
                 "error": "无法初始化API客户端"
             }), 500
         
+        # 不进行预验证，直接通过API调用测试
+        # 让服务商告诉我们模型是否存在
+        
         # 发送测试请求
         import asyncio
         
@@ -951,7 +954,28 @@ def test_api_connection():
                 )
                 return response.choices[0].message.content
             except Exception as e:
-                raise e
+                # 解析API错误信息
+                error_msg = str(e).lower()
+                error_type = type(e).__name__
+                
+                # 检查各种可能的错误类型
+                if 'model' in error_msg and ('not found' in error_msg or 'invalid' in error_msg or 'does not exist' in error_msg or 'unknown' in error_msg):
+                    raise Exception(f"模型 '{model_name}' 不存在或无效，请检查模型名称是否正确")
+                elif 'unauthorized' in error_msg or '401' in error_msg or 'authentication' in error_msg:
+                    raise Exception("API密钥无效或已过期，请检查密钥是否正确")
+                elif 'forbidden' in error_msg or '403' in error_msg or 'permission' in error_msg:
+                    raise Exception("API密钥权限不足，请检查密钥权限或配额")
+                elif 'rate limit' in error_msg or '429' in error_msg:
+                    raise Exception("API调用频率超限，请稍后重试")
+                elif 'quota' in error_msg or 'billing' in error_msg:
+                    raise Exception("API配额不足或账单问题，请检查账户状态")
+                elif 'timeout' in error_msg or 'connection' in error_msg:
+                    raise Exception("网络连接超时，请检查网络连接")
+                elif 'server' in error_msg or '500' in error_msg or '502' in error_msg or '503' in error_msg:
+                    raise Exception("API服务暂时不可用，请稍后重试")
+                else:
+                    # 对于其他错误，提供更详细的错误信息
+                    raise Exception(f"API调用失败: {str(e)}")
         
         # 运行测试
         loop = asyncio.new_event_loop()
