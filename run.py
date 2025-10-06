@@ -32,7 +32,7 @@ if __name__ == '__main__':
         print("按 Ctrl+C 停止服务")
         
         app.run(
-            debug=True,
+            debug=False,
             host='0.0.0.0',
             port=8888,
             threaded=True

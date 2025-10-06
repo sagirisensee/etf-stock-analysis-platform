@@ -59,7 +59,7 @@ class AntiCrawlingController:
         # 确保延迟在合理范围内
         delay = min(max(delay, self.base_delay), self.max_delay)
         
-        logger.info(f"🕐 [反爬虫控制] {api_name} 请求延迟: {delay:.2f}秒 (最近请求数: {recent_requests})")
+        # 智能延迟控制已启用
         return delay
     
     def record_request(self, api_name: str):
@@ -141,12 +141,12 @@ def get_all_etf_spot_realtime():
             delay = anti_crawling.get_smart_delay(source['name'])
             time.sleep(delay)
             
-            logger.info(f"🔧 [ETF实时数据] 尝试数据源: {source['description']}")
+            # 尝试数据源
             df = source['func']()
             
             # 记录成功请求
             anti_crawling.record_request(source['name'])
-            logger.info(f"✅ [ETF实时数据] {source['description']} 获取成功")
+            # 数据获取成功
             
             # 根据数据源进行不同的列名映射
             if source['name'] == 'fund_etf_spot_em':
@@ -224,8 +224,8 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         
         # 获取配置的日期范围
         start_date, end_date = data_config.get_date_range()
-        logger.info(f"🔧 [ETF历史数据] 调用 ak.fund_etf_hist_em 参数: symbol={etf_code}, period=daily, adjust=qfq, start_date={start_date}, end_date={end_date}")
-        logger.info(f"📅 [ETF历史数据] 数据范围: 最近{data_config.max_days}天 (最少需要{data_config.min_days}天用于SMA_60)")
+        # 调用历史数据接口
+        # 数据范围配置
         
         daily_df = await asyncio.to_thread(
             ak.fund_etf_hist_em,
@@ -238,10 +238,7 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         
         # 记录成功请求
         anti_crawling.record_request(api_name)
-        logger.info(f"📈 [ETF历史数据] {etf_code} 原始数据获取结果: {type(daily_df)}, 形状: {daily_df.shape if daily_df is not None else 'None'}")
-        if daily_df is not None and not daily_df.empty:
-            logger.info(f"📋 [ETF历史数据] {etf_code} 原始列名: {list(daily_df.columns)}")
-            logger.info(f"📋 [ETF历史数据] {etf_code} 前3行:\n{daily_df.head(3)}")
+        # 历史数据获取完成
         
         # 标准化列名
         if '收盘' in daily_df.columns:
@@ -253,7 +250,7 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         if '日期' in daily_df.columns:
             daily_df.rename(columns={'日期': 'date'}, inplace=True)
         
-        logger.info(f"✅ [ETF历史数据] {etf_code} 处理完成，最终列名: {list(daily_df.columns) if daily_df is not None else 'None'}")
+        # 数据处理完成
         return daily_df
     except Exception as e:
         logger.error(f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时出错 (将进行重试): {e}", exc_info=True)
@@ -270,7 +267,7 @@ def get_all_stock_spot_realtime():
         time.sleep(delay)
         
         # 使用专门获取股票实时行情的接口
-        logger.info(f"🔧 [股票实时数据] 调用 ak.{api_name}")
+        # 调用股票实时数据接口
         df = ak.stock_zh_a_spot_em()
         
         # 记录成功请求
@@ -315,8 +312,8 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
         
         # 获取配置的日期范围
         start_date, end_date = data_config.get_date_range()
-        logger.info(f"🔧 [股票历史数据] 调用 ak.stock_zh_a_hist 参数: symbol={stock_code}, period=daily, adjust=qfq, start_date={start_date}, end_date={end_date}")
-        logger.info(f"📅 [股票历史数据] 数据范围: 最近{data_config.max_days}天 (最少需要{data_config.min_days}天用于SMA_60)")
+        # 调用股票历史数据接口
+        # 数据范围配置
         
         # 使用专门获取股票历史数据的接口
         daily_df = await asyncio.to_thread(

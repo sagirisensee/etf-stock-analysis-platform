@@ -33,7 +33,7 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
     for i, signal in enumerate(intraday_signals):
         code = signal['code']
         name = signal['name']
-        logger.info(f"正在调用LLM分析: {name} ({i+1}/{len(intraday_signals)})")
+        # 调用LLM分析
         try:
             daily_trend = daily_trends_map.get(code, {'status': '未知'})
             ai_score, ai_comment = await get_llm_score_and_analysis(signal, daily_trend)
@@ -50,20 +50,20 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
 
 async def _get_daily_trends_generic(get_daily_history_func, core_pool):
     analysis_report = []
-    logger.info(f"🔍 开始获取历史数据，标的池数量: {len(core_pool)}")
+    # 开始获取历史数据
     
     for i, item_info in enumerate(core_pool):
         code = item_info['code']
         name = item_info['name']
         item_type = item_info.get('type', 'stock')
         
-        logger.info(f"📊 [{i+1}/{len(core_pool)}] 正在获取 {name}({code}) 的历史数据，类型: {item_type}")
+        # 正在获取历史数据
         
         try:
-            logger.info(f"🔧 调用函数: {get_daily_history_func.__name__} 参数: code={code}, data_type={item_type}")
+            # 调用数据获取函数
             result = await get_daily_history_func(code, item_type)
             
-            logger.info(f"📈 {name}({code}) 历史数据获取结果:")
+            # 历史数据获取结果
             if result is None:
                 logger.warning(f"❌ {name}({code}) 返回 None")
                 analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据返回None。"], 'raw_debug_data': {'error': 'function_returned_none'}})
@@ -73,10 +73,8 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据为空DataFrame。"], 'raw_debug_data': {'error': 'empty_dataframe'}})
                 continue
             else:
-                logger.info(f"✅ {name}({code}) 获取到 {len(result)} 行数据")
-                logger.info(f"📋 列名: {list(result.columns)}")
-                logger.info(f"📋 前3行数据:\n{result.head(3)}")
-                logger.info(f"📋 数据类型:\n{result.dtypes}")
+                # 数据获取成功
+                pass
             
             # 字段标准化
             if '收盘' in result.columns: 
@@ -149,8 +147,7 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
 
             # --- 状态判定 ---
             status = judge_trend_status(latest, prev_latest)
-            logger.info(f"🎯 {name}({code}) 分析完成，状态: {status}")
-            logger.info(f"📊 技术指标信号: {trend_signals}")
+            # 分析完成
             
             analysis_report.append({
                 **item_info,
