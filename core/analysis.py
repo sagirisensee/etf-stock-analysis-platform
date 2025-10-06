@@ -50,12 +50,34 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
 
 async def _get_daily_trends_generic(get_daily_history_func, core_pool):
     analysis_report = []
-    for item_info in core_pool:
+    logger.info(f"🔍 开始获取历史数据，标的池数量: {len(core_pool)}")
+    
+    for i, item_info in enumerate(core_pool):
+        code = item_info['code']
+        name = item_info['name']
+        item_type = item_info.get('type', 'stock')
+        
+        logger.info(f"📊 [{i+1}/{len(core_pool)}] 正在获取 {name}({code}) 的历史数据，类型: {item_type}")
+        
         try:
-            result = await get_daily_history_func(item_info['code'], item_info.get('type', 'stock'))
-            if result is None or result.empty:
-                analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据为空或无法获取。"], 'raw_debug_data': {}})
+            logger.info(f"🔧 调用函数: {get_daily_history_func.__name__} 参数: code={code}, data_type={item_type}")
+            result = await get_daily_history_func(code, item_type)
+            
+            logger.info(f"📈 {name}({code}) 历史数据获取结果:")
+            if result is None:
+                logger.warning(f"❌ {name}({code}) 返回 None")
+                analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据返回None。"], 'raw_debug_data': {'error': 'function_returned_none'}})
                 continue
+            elif result.empty:
+                logger.warning(f"❌ {name}({code}) 返回空DataFrame")
+                analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据为空DataFrame。"], 'raw_debug_data': {'error': 'empty_dataframe'}})
+                continue
+            else:
+                logger.info(f"✅ {name}({code}) 获取到 {len(result)} 行数据")
+                logger.info(f"📋 列名: {list(result.columns)}")
+                logger.info(f"📋 前3行数据:\n{result.head(3)}")
+                logger.info(f"📋 数据类型:\n{result.dtypes}")
+            
             # 字段标准化
             if '收盘' in result.columns: 
                 result.rename(columns={'收盘': 'close'}, inplace=True)
@@ -127,6 +149,9 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
 
             # --- 状态判定 ---
             status = judge_trend_status(latest, prev_latest)
+            logger.info(f"🎯 {name}({code}) 分析完成，状态: {status}")
+            logger.info(f"📊 技术指标信号: {trend_signals}")
+            
             analysis_report.append({
                 **item_info,
                 'status': status,
@@ -134,13 +159,34 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 'raw_debug_data': {}
             })
         except Exception as e:
-            logger.error(f"分析 {item_info.get('name', item_info['code'])} 时出错: {e}", exc_info=True)
-            analysis_report.append({
-                **item_info,
-                'status': '❌ 分析失败',
-                'technical_indicators_summary': [f"数据获取或分析过程中出现错误：{e}"],
-                'raw_debug_data': {}
-            })
+            logger.error(f"💥 {name}({code}) 分析时出错: {e}", exc_info=True)
+            
+            # 降级处理：即使历史数据获取失败，也提供基础分析
+            error_type = str(e)
+            if "RetryError" in error_type or "ConnectionError" in error_type:
+                # 网络连接问题，提供基础分析
+                logger.info(f"🔄 {name}({code}) 历史数据获取失败，提供基础分析")
+                analysis_report.append({
+                    **item_info,
+                    'status': '🟡 数据源暂时不可用',
+                    'technical_indicators_summary': [
+                        "历史数据源暂时不可用（可能是网络问题或反爬虫限制）",
+                        "建议稍后重试或检查网络连接"
+                    ],
+                    'raw_debug_data': {
+                        'error_type': 'data_source_unavailable',
+                        'error_message': str(e),
+                        'suggestion': '请稍后重试，数据源可能暂时被限制访问'
+                    }
+                })
+            else:
+                # 其他错误
+                analysis_report.append({
+                    **item_info,
+                    'status': '❌ 分析失败',
+                    'technical_indicators_summary': [f"数据获取或分析过程中出现错误：{e}"],
+                    'raw_debug_data': {'error_type': 'analysis_error', 'error_message': str(e)}
+                })
     return analysis_report
 
 class _IntradaySignalGenerator:
