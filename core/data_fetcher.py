@@ -199,12 +199,10 @@ def get_all_etf_spot_realtime():
             # 只对存在的列进行dropna
             available_cols = [col for col in numeric_cols if col in df.columns]
             df.dropna(subset=available_cols, inplace=True)
-            # ETF涨跌幅处理：ETF类型，必须乘以100转换为百分比
+            # 涨跌幅数据处理：保持原始格式
             if '涨跌幅' in df.columns:
                 df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
-                # ETF数据源返回小数形式，必须转换为百分比
-                df['涨跌幅'] = df['涨跌幅'] * 100
-                logger.info("🔄 [ETF实时数据] 涨跌幅从小数转换为百分比")
+                logger.info("✅ [ETF实时数据] 涨跌幅保持原始格式")
             else:
                 # 如果没有涨跌幅列，则计算
                 df['涨跌幅'] = 0.0
@@ -258,12 +256,10 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         if '日期' in daily_df.columns:
             daily_df.rename(columns={'日期': 'date'}, inplace=True)
         
-        # ETF历史数据涨跌幅处理：ETF类型，必须乘以100转换为百分比
+        # 涨跌幅数据处理：保持原始格式
         if '涨跌幅' in daily_df.columns:
             daily_df['涨跌幅'] = pd.to_numeric(daily_df['涨跌幅'], errors='coerce')
-            # ETF历史数据源返回小数形式，必须转换为百分比
-            daily_df['涨跌幅'] = daily_df['涨跌幅'] * 100
-            logger.info("🔄 [ETF历史数据] 涨跌幅从小数转换为百分比")
+            logger.info("✅ [ETF历史数据] 涨跌幅保持原始格式")
         
         # 数据处理完成
         return daily_df
@@ -313,11 +309,10 @@ def get_all_stock_spot_realtime():
         df.dropna(subset=numeric_cols, inplace=True)
         logger.info(f"📊 [股票实时数据] 数据清理后形状: {df.shape}")
         
-        # 股票涨跌幅处理：股票类型，直接使用（已经是百分比形式）
+        # 涨跌幅数据处理：保持原始格式
         if '涨跌幅' in df.columns:
             df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
-            # 股票数据源返回百分比形式，直接使用
-            logger.info("✅ [股票实时数据] 涨跌幅已经是百分比形式，直接使用")
+            logger.info("✅ [股票实时数据] 涨跌幅保持原始格式")
         else:
             # 如果没有涨跌幅列，则计算
             df['涨跌幅'] = 0.0
