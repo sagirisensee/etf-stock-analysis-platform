@@ -628,6 +628,27 @@ def pools_page():
     stock_pools = get_user_stock_pools(user_id, 'stock')
     return render_template('pools.html', etf_pools=etf_pools, stock_pools=stock_pools)
 
+@app.route('/api/pools')
+@login_required
+def api_pools():
+    """获取用户池子数据API"""
+    try:
+        user_id = session['user_id']
+        etf_pools = get_user_stock_pools(user_id, 'etf')
+        stock_pools = get_user_stock_pools(user_id, 'stock')
+        
+        return jsonify({
+            'success': True,
+            'etf_pools': etf_pools,
+            'stock_pools': stock_pools
+        })
+    except Exception as e:
+        logger.error(f"获取池子数据失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'获取池子数据失败: {str(e)}'
+        }), 500
+
 @app.route('/pools/add', methods=['POST'])
 @login_required
 def add_pool():
@@ -729,81 +750,60 @@ def api_analyze(analysis_type):
             if value:
                 os.environ[key] = value
         
-        if analysis_type == 'etf':
-            pools = get_user_stock_pools(user_id, 'etf')
-            if not pools:
-                return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
-            core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'etf'} for p in pools]
-            
-            # 运行异步分析
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                results = loop.run_until_complete(
-                    generate_ai_driven_report(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
-                )
-            finally:
-                loop.close()
-                
-        elif analysis_type == 'stock':
-            pools = get_user_stock_pools(user_id, 'stock')
-            if not pools:
-                return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
-            core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'stock'} for p in pools]
-            
-            # 运行异步分析
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                results = loop.run_until_complete(
-                    generate_ai_driven_report(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
-                )
-            finally:
-                loop.close()
-                
-        elif analysis_type == 'etf_debug':
-            pools = get_user_stock_pools(user_id, 'etf')
-            if not pools:
-                return jsonify({"success": False, "error": "个人ETF标的池为空，请先添加ETF标的"})
-            core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
-            
-            # 调试模式调用异步函数
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                logger.info(f"开始调试分析，标的池: {core_pool}")
-                results = loop.run_until_complete(
-                    get_detailed_analysis_report_for_debug(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
-                )
-                logger.info(f"调试分析完成，结果类型: {type(results)}")
-            except Exception as e:
-                logger.error(f"调试分析失败: {str(e)}", exc_info=True)
-                return jsonify({"success": False, "error": f"调试分析失败: {str(e)}"})
-            finally:
-                loop.close()
-                
-        elif analysis_type == 'stock_debug':
-            pools = get_user_stock_pools(user_id, 'stock')
-            if not pools:
-                return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
-            core_pool = [{'code': p['code'], 'name': p['name']} for p in pools]
-            
-            # 调试模式调用异步函数
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                logger.info(f"开始调试分析，标的池: {core_pool}")
-                results = loop.run_until_complete(
-                    get_detailed_analysis_report_for_debug(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
-                )
-                logger.info(f"调试分析完成，结果类型: {type(results)}")
-            except Exception as e:
-                logger.error(f"调试分析失败: {str(e)}", exc_info=True)
-                return jsonify({"success": False, "error": f"调试分析失败: {str(e)}"})
-            finally:
-                loop.close()
+        # 检查是否是个别分析
+        individual_code = request.args.get('code')
+        individual_name = request.args.get('name')
+        
+        if individual_code and individual_name:
+            # 个别分析
+            if analysis_type in ['etf', 'etf_debug']:
+                core_pool = [{'code': individual_code, 'name': individual_name, 'type': 'etf'}]
+            elif analysis_type in ['stock', 'stock_debug']:
+                core_pool = [{'code': individual_code, 'name': individual_name, 'type': 'stock'}]
+            else:
+                return jsonify({"success": False, "error": "不支持的分析类型"})
         else:
-            return jsonify({'error': '不支持的分析类型'}), 400
+            # 批量分析
+            if analysis_type == 'etf':
+                pools = get_user_stock_pools(user_id, 'etf')
+                if not pools:
+                    return jsonify({"success": False, "error": "ETF标的池为空，请先添加ETF标的"})
+                core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'etf'} for p in pools]
+                
+            elif analysis_type == 'stock':
+                pools = get_user_stock_pools(user_id, 'stock')
+                if not pools:
+                    return jsonify({"success": False, "error": "个人股票标的池为空，请先添加股票标的"})
+                core_pool = [{'code': p['code'], 'name': p['name'], 'type': 'stock'} for p in pools]
+            else:
+                return jsonify({"success": False, "error": "不支持的分析类型"})
+        
+        # 运行异步分析
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            if analysis_type in ['etf', 'etf_debug']:
+                if analysis_type == 'etf_debug':
+                    results = loop.run_until_complete(
+                        get_detailed_analysis_report_for_debug(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
+                    )
+                else:
+                    results = loop.run_until_complete(
+                        generate_ai_driven_report(get_all_etf_spot_realtime, get_etf_daily_history, core_pool)
+                    )
+            elif analysis_type in ['stock', 'stock_debug']:
+                if analysis_type == 'stock_debug':
+                    results = loop.run_until_complete(
+                        get_detailed_analysis_report_for_debug(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
+                    )
+                else:
+                    results = loop.run_until_complete(
+                        generate_ai_driven_report(get_all_stock_spot_realtime, get_stock_daily_history, core_pool)
+                    )
+            else:
+                return jsonify({"success": False, "error": "不支持的分析类型"})
+        finally:
+            loop.close()
         
         # 检查分析结果
         if results is None or len(results) == 0:

@@ -68,6 +68,17 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         combined_data["盘中技术信号"] = etf_data.get('analysis_points')
     else:
         combined_data["盘中技术信号"] = [] # 确保始终是列表
+    
+    # 添加调试日志
+    logger.info(f"=== LLM分析数据调试 ===")
+    logger.info(f"ETF名称: {etf_data.get('name')}")
+    logger.info(f"代码: {etf_data.get('code')}")
+    logger.info(f"日内涨跌幅: {etf_data.get('change', 0):.2f}%")
+    logger.info(f"日线趋势: {daily_trend_data.get('status')}")
+    logger.info(f"技术指标数量: {len(daily_trend_data.get('technical_indicators_summary', []))}")
+    logger.info(f"技术指标内容: {daily_trend_data.get('technical_indicators_summary', [])}")
+    logger.info(f"盘中信号: {etf_data.get('analysis_points', [])}")
+    logger.info(f"=== 调试结束 ===")
 
     # --- 2. 优化 system_prompt ---
     # 明确指示LLM如何利用 '详细技术指标分析列表'，并要求输出为一段自然语言的点评字符串
@@ -82,12 +93,31 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         "   - 例如：'股价高于20日均线，短期趋势向上；MACD金叉，多头力量增强；成交量较60日均量显著放大，市场活跃。'\n"
         "   - **避免直接引用列表中的原句，而是整合为连贯的分析性语句**。\n"
         "5. **综合评分和精炼点评**：\n"
-        "   - 综合上述分析，给出一个0-100分的综合评分（50为中性）。\n"
+        "   - **评分必须根据具体的技术指标表现进行差异化评分，不能给出相同的分数**。\n"
+        "   - **每个投资标的的技术指标都不同，必须根据其独特的技术面表现给出不同的评分**。\n"
+        "   - **评分权重说明**：\n"
+        "     * 均线指标（40%权重）：金叉/死叉、多头/空头排列、均线位置关系\n"
+        "     * MACD指标（30%权重）：金叉/死叉、零轴位置、红绿柱变化\n"
+        "     * 布林带指标（20%权重）：突破/跌破上轨下轨、中轨位置\n"
+        "     * 其他指标（10%权重）：成交量、趋势强度、震荡情况\n"
+        "   - 评分标准：\n"
+        "     * 90-100分：技术面极强，多个重要指标显示强烈买入信号\n"
+        "     * 80-89分：技术面较强，主要指标显示买入信号\n"
+        "     * 70-79分：技术面偏强，部分指标显示买入信号\n"
+        "     * 60-69分：技术面中性偏强，指标混合但偏多\n"
+        "     * 50-59分：技术面中性，指标无明显方向\n"
+        "     * 40-49分：技术面中性偏弱，指标混合但偏空\n"
+        "     * 30-39分：技术面偏弱，部分指标显示卖出信号\n"
+        "     * 20-29分：技术面较弱，主要指标显示卖出信号\n"
+        "     * 10-19分：技术面极弱，多个指标显示强烈卖出信号\n"
+        "     * 0-9分：技术面极差，数据严重缺失或指标全部显示卖出\n"
+        "   - **重要：必须仔细分析每个标的的具体技术指标表现，给出差异化的评分**。\n"
         "   - 撰写一句精炼的交易点评（作为comment字段内容）。\n"
         "   - **点评应是流畅的自然语言字符串，而不是嵌套的JSON或字典**。\n\n"
         "请严格以JSON格式返回，包含'score'（数字类型）和'comment'（字符串类型）两个键，例如:\n"
         '{"score": 75, "comment": "上证50ETF目前技术面表现强劲，股价站上多条均线，MACD呈金叉，但需注意量能是否持续。建议关注。"} \n'
-        "确保comment字段是**纯字符串**，不包含任何嵌套JSON结构。" # 再次强调
+        "确保comment字段是**纯字符串**，不包含任何嵌套JSON结构。\n"
+        "**特别注意：每个投资标的的技术指标表现都不同，必须根据其具体的技术面表现给出不同的评分，不能给出相同的分数。**" # 再次强调
     )
 
     try:
@@ -135,6 +165,18 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         else:
             # OpenAI 兼容格式解析
             score, comment = _parse_openai_response(raw_content)
+        
+        # 基于技术指标权重进行评分调整
+        if score is not None and isinstance(score, (int, float)):
+            # 根据技术指标重要性进行权重调整
+            adjusted_score = _calculate_weighted_score(score, daily_trend_data.get('technical_indicators_summary', []))
+            
+            # 如果数据缺失，返回特殊状态
+            if adjusted_score is None:
+                return None, "数据缺失，无法进行评分分析"
+            
+            score = max(0, min(100, adjusted_score))
+            score = round(score, 1)  # 保留一位小数
         
         return score, comment
 
@@ -190,6 +232,100 @@ def _parse_perplexity_response(raw_content):
     # 最后的兜底方案
     logger.warning(f"Perplexity AI响应解析失败，使用默认值: {raw_content[:200]}...")
     return 50, "Perplexity AI分析完成，但响应格式需要优化"
+
+def _calculate_weighted_score(base_score, technical_indicators):
+    """
+    基于技术指标重要性进行权重评分调整
+    根据实际技术分析中指标的重要性来分配权重
+    """
+    if not technical_indicators:
+        return base_score
+    
+    # 检查是否有数据缺失情况
+    data_missing_keywords = ['数据缺失', '数据不足', '无法分析', '数据异常', '数据源暂时不可用']
+    has_data_missing = any(any(keyword in indicator.lower() for keyword in data_missing_keywords) 
+                          for indicator in technical_indicators)
+    
+    # 如果数据缺失，返回特殊值表示无法评分
+    if has_data_missing:
+        logger.warning("检测到数据缺失，无法进行评分")
+        return None  # 返回None表示无法评分
+    
+    # 技术指标权重配置（基于实际重要性）
+    indicator_weights = {
+        # 均线指标权重（最重要，占40%）
+        '均线': 0.4,
+        'SMA': 0.4,
+        'MA': 0.4,
+        '金叉': 0.35,
+        '死叉': 0.35,
+        '多头排列': 0.4,
+        '空头排列': 0.4,
+        
+        # MACD指标权重（次重要，占30%）
+        'MACD': 0.3,
+        'MACD金叉': 0.3,
+        'MACD死叉': 0.3,
+        '红柱': 0.25,
+        '绿柱': 0.25,
+        '零轴': 0.2,
+        
+        # 布林带指标权重（第三重要，占20%）
+        '布林': 0.2,
+        '布林上轨': 0.2,
+        '布林下轨': 0.2,
+        '布林中轨': 0.15,
+        '突破': 0.25,
+        '跌破': 0.25,
+        
+        # 其他指标权重（占10%）
+        '成交量': 0.1,
+        '量能': 0.1,
+        '震荡': 0.05,
+        '趋势': 0.1
+    }
+    
+    # 计算权重调整
+    total_weight = 0
+    positive_signals = 0
+    negative_signals = 0
+    neutral_signals = 0
+    
+    for indicator in technical_indicators:
+        indicator_lower = indicator.lower()
+        
+        # 计算该指标的权重
+        indicator_weight = 0
+        for key, weight in indicator_weights.items():
+            if key.lower() in indicator_lower:
+                indicator_weight = max(indicator_weight, weight)
+        
+        total_weight += indicator_weight
+        
+        # 判断信号类型
+        if any(keyword in indicator_lower for keyword in ['金叉', '多头', '突破', '上方', '增长', '增强', '向上', '积极']):
+            positive_signals += 1
+        elif any(keyword in indicator_lower for keyword in ['死叉', '空头', '跌破', '下方', '缩短', '减弱', '向下', '谨慎', '超买', '超卖']):
+            negative_signals += 1
+        else:
+            neutral_signals += 1
+    
+    # 基于信号类型和权重计算调整
+    if total_weight == 0:
+        return base_score
+    
+    # 信号强度计算
+    signal_ratio = (positive_signals - negative_signals) / max(1, len(technical_indicators))
+    
+    # 权重调整（基于总权重和信号强度）
+    weight_adjustment = total_weight * signal_ratio * 20  # 最大调整±20分
+    
+    # 应用调整
+    adjusted_score = base_score + weight_adjustment
+    
+    logger.info(f"权重评分调整: 基础分={base_score:.1f}, 权重={total_weight:.2f}, 信号比例={signal_ratio:.2f}, 调整={weight_adjustment:.1f}, 最终分={adjusted_score:.1f}")
+    
+    return adjusted_score
 
 def _parse_openai_response(raw_content):
     """解析OpenAI兼容格式的响应"""

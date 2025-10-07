@@ -40,8 +40,8 @@
                                 <option value="">所有类型</option>
                                 <option value="etf">ETF分析</option>
                                 <option value="stock">股票分析</option>
-                                <option value="etf_debug">ETF调试</option>
-                                <option value="stock_debug">股票调试</option>
+                                <option value="etf_debug">ETF数据指标</option>
+                                <option value="stock_debug">股票数据指标</option>
                             </select>
                         </div>
                     </div>
@@ -61,11 +61,11 @@
                                                 <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
                                                 <div class="badge bg-success">股票分析</div>
                                             {% elif record.analysis_type == 'etf_debug' %}
-                                                <i class="fas fa-bug fa-2x text-warning mb-2"></i>
-                                                <div class="badge bg-warning">ETF调试</div>
+                                                <i class="fas fa-chart-bar fa-2x text-warning mb-2"></i>
+                                                <div class="badge bg-warning">ETF数据指标</div>
                                             {% elif record.analysis_type == 'stock_debug' %}
-                                                <i class="fas fa-bug fa-2x text-info mb-2"></i>
-                                                <div class="badge bg-info">股票调试</div>
+                                                <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                                                <div class="badge bg-info">股票数据指标</div>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -74,8 +74,8 @@
                                         <h6 class="mb-1">
                                             {% if record.analysis_type == 'etf' %}ETF AI分析报告
                                             {% elif record.analysis_type == 'stock' %}股票AI分析报告
-                                            {% elif record.analysis_type == 'etf_debug' %}ETF调试分析报告
-                                            {% elif record.analysis_type == 'stock_debug' %}股票调试分析报告
+                                            {% elif record.analysis_type == 'etf_debug' %}ETF数据指标分析报告
+                                            {% elif record.analysis_type == 'stock_debug' %}股票数据指标分析报告
                                             {% endif %}
                                         </h6>
                                         <p class="text-muted mb-1">
@@ -184,6 +184,28 @@
 <script>
     let currentHistoryData = null;
 
+    // 获取类型显示名称
+    function getTypeDisplayName(analysisType) {
+        const typeNames = {
+            'etf': 'ETF分析',
+            'stock': '股票分析',
+            'etf_debug': 'ETF数据指标',
+            'stock_debug': '股票数据指标'
+        };
+        return typeNames[analysisType] || '未知类型';
+    }
+
+    // 获取类型徽章样式
+    function getTypeBadgeClass(analysisType) {
+        const typeClasses = {
+            'etf': 'bg-primary',
+            'stock': 'bg-success',
+            'etf_debug': 'bg-warning',
+            'stock_debug': 'bg-info'
+        };
+        return typeClasses[analysisType] || 'bg-secondary';
+    }
+
     // 搜索功能
     document.getElementById('searchInput').addEventListener('input', function() {
         filterHistory();
@@ -271,8 +293,8 @@
                 </div>
                 <div class="col-md-6">
                     <h6><i class="fas fa-chart-bar me-1"></i>分析类型</h6>
-                    <span class="badge ${data.analysis_type === 'etf' ? 'bg-primary' : 'bg-success'}">
-                        ${data.analysis_type === 'etf' ? 'ETF分析' : '股票分析'}
+                    <span class="badge ${getTypeBadgeClass(data.analysis_type)}">
+                        ${getTypeDisplayName(data.analysis_type)}
                     </span>
                 </div>
             </div>

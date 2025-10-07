@@ -26,8 +26,8 @@ class AntiCrawlingController:
     def __init__(self):
         self.last_request_time = {}
         self.request_count = {}
-        self.base_delay = 3  # 基础延迟3秒
-        self.max_delay = 10  # 最大延迟10秒
+        self.base_delay = 6  # 基础延迟6秒（延长一倍）
+        self.max_delay = 20  # 最大延迟20秒（延长一倍）
         self.request_window = 60  # 请求时间窗口（秒）
         self.max_requests_per_window = 10  # 每个时间窗口最大请求数
     
@@ -212,7 +212,7 @@ def get_all_etf_spot_realtime():
     logger.error(f"💥 [ETF实时数据] 所有数据源都获取失败")
     return None
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=4, max=60))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=8, max=120))
 async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
     """获取单支ETF的历史日线数据 (带自动重试)"""
     logger.info(f"🔍 [ETF历史数据] 正在获取 {etf_code} 的历史日线数据，类型: {data_type}")
@@ -300,7 +300,7 @@ def get_all_stock_spot_realtime():
         logger.error(f" 获取股票实时数据失败: {e}", exc_info=True)
         return None
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=4, max=60))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=8, max=120))
 async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
     """获取单支股票的历史日线数据 (带自动重试)"""
     logger.info(f"🔍 [股票历史数据] 正在获取 {stock_code} 的历史日线数据，类型: {data_type}")

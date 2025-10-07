@@ -37,14 +37,33 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
         try:
             daily_trend = daily_trends_map.get(code, {'status': '未知'})
             ai_score, ai_comment = await get_llm_score_and_analysis(signal, daily_trend)
-            final_report.append({
-                **signal,
-                "ai_score": ai_score if ai_score is not None else 0,
-                "ai_comment": ai_comment
-            })
+            
+            # 如果AI评分为None（数据缺失），使用特殊状态
+            if ai_score is None:
+                final_report.append({
+                    **signal,
+                    "ai_score": "数据缺失",
+                    "ai_comment": ai_comment,
+                    "daily_trend_status": daily_trend.get('status', '未知'),
+                    "technical_indicators_summary": daily_trend.get('technical_indicators_summary', [])
+                })
+            else:
+                final_report.append({
+                    **signal,
+                    "ai_score": ai_score,
+                    "ai_comment": ai_comment,
+                    "daily_trend_status": daily_trend.get('status', '未知'),
+                    "technical_indicators_summary": daily_trend.get('technical_indicators_summary', [])
+                })
         except Exception as e:
             logger.error(f"处理LLM分析 {name} 时发生错误: {e}")
-            final_report.append({**signal, "ai_score": 0, "ai_comment": "处理时发生未知错误。"})
+            final_report.append({
+                **signal, 
+                "ai_score": 0, 
+                "ai_comment": "处理时发生未知错误。",
+                "daily_trend_status": "❌ 分析失败",
+                "technical_indicators_summary": ["分析过程中发生错误"]
+            })
         await asyncio.sleep(random.uniform(1.0, 2.5))
     return sorted(final_report, key=lambda x: x.get('ai_score', 0), reverse=True)
 

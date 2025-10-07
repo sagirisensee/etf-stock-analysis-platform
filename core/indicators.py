@@ -133,30 +133,36 @@ def analyze_ma(result, latest, prev_latest, trend_signals):
             s_col = f'SMA_{s_len}'
             l_col = f'SMA_{l_len}'
             
-            # 修正：直接使用布尔表达式，避免再次包装在 all() 中
             # 检查当前和前一日均线值是否都可用
             current_s_val = latest.get(s_col)
             current_l_val = latest.get(l_col)
             prev_s_val = prev_latest.get(s_col)
             prev_l_val = prev_latest.get(l_col)
 
-            # --- 修正后的条件判断 ---
-            if pd.notna(current_s_val) and pd.notna(current_l_val) and \
-               pd.notna(prev_s_val) and pd.notna(prev_l_val):
-                
-                # Check for Golden Cross
-                if current_s_val > current_l_val and prev_s_val <= prev_l_val:
-                    trend_signals.append(f"{s_len}日均线金叉{l_len}日均线（看涨信号）。")
-                # Check for Death Cross
-                elif current_s_val < current_l_val and prev_s_val >= prev_l_val:
-                    trend_signals.append(f"{s_len}日均线死叉{l_len}日均线（看跌信号）。")
-                else:
-                    # Current arrangement description if no cross
-                    if current_s_val > current_l_val:
-                        trend_signals.append(f"{s_len}日均线在{l_len}日均线上方，多头排列延续。")
+            # 如果当前值都存在，至少可以判断当前排列
+            if pd.notna(current_s_val) and pd.notna(current_l_val):
+                # 如果前一日值也存在，可以判断交叉
+                if pd.notna(prev_s_val) and pd.notna(prev_l_val):
+                    # Check for Golden Cross
+                    if current_s_val > current_l_val and prev_s_val <= prev_l_val:
+                        trend_signals.append(f"{s_len}日均线金叉{l_len}日均线（看涨信号）。")
+                    # Check for Death Cross
+                    elif current_s_val < current_l_val and prev_s_val >= prev_l_val:
+                        trend_signals.append(f"{s_len}日均线死叉{l_len}日均线（看跌信号）。")
                     else:
-                        trend_signals.append(f"{s_len}日均线在{l_len}日均线下方，空头排列延续。")
+                        # Current arrangement description if no cross
+                        if current_s_val > current_l_val:
+                            trend_signals.append(f"{s_len}日均线在{l_len}日均线上方，多头排列延续。")
+                        else:
+                            trend_signals.append(f"{s_len}日均线在{l_len}日均线下方，空头排列延续。")
+                else:
+                    # 只有当前值，只能判断当前排列
+                    if current_s_val > current_l_val:
+                        trend_signals.append(f"{s_len}日均线在{l_len}日均线上方，多头排列。")
+                    else:
+                        trend_signals.append(f"{s_len}日均线在{l_len}日均线下方，空头排列。")
             else:
+                # 如果连当前值都没有，才报告数据缺失
                 trend_signals.append(f"{s_len}日与{l_len}日均线数据缺失，无法判断交叉。")
         
         # 60日均线趋势 (Long-term trend)
@@ -170,6 +176,9 @@ def analyze_ma(result, latest, prev_latest, trend_signals):
                 trend_signals.append("60日均线趋势向下（中长期趋势谨慎）。")
             else:
                 trend_signals.append("60日均线趋势持平（中长期趋势中性）。")
+        elif pd.notna(sma_60_latest):
+            # 如果只有当前值，至少可以判断当前状态
+            trend_signals.append("60日均线当前值可用，但无法判断趋势变化。")
         else:
             trend_signals.append("60日均线数据缺失，无法判断趋势。")
     except Exception as e: 

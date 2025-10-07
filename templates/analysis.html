@@ -13,37 +13,41 @@
                 <p class="text-muted mb-0 mt-2">对您的投资标的进行AI驱动的量化分析</p>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100 border-primary card-clickable" onclick="startAnalysis('etf')">
-                            <div class="card-body text-center">
-                                <i class="fas fa-chart-pie fa-3x text-primary mb-3"></i>
-                                <h5>ETF AI分析</h5>
-                                <p class="text-muted">对ETF池中的基金进行AI评分和分析</p>
-                                <button class="btn btn-primary" onclick="event.stopPropagation(); startAnalysis('etf')">
-                                    <i class="fas fa-play me-1"></i>开始ETF分析
-                                </button>
-                                <button class="btn btn-outline-primary ms-2" onclick="event.stopPropagation(); startAnalysis('etf_debug')">
-                                    <i class="fas fa-bug me-1"></i>调试模式
-                                </button>
-                            </div>
-                        </div>
+                <!-- ETF池分析区域 -->
+                <div class="mb-4">
+                    <h5 class="text-primary mb-3">
+                        <i class="fas fa-chart-pie me-2"></i>ETF池分析
+                    </h5>
+                    <div id="etfPoolContainer" class="row">
+                        <!-- ETF标的将在这里动态加载 -->
                     </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100 border-success card-clickable" onclick="startAnalysis('stock')">
-                            <div class="card-body text-center">
-                                <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
-                                <h5>股票AI分析</h5>
-                                <p class="text-muted">对股票池中的股票进行AI评分和分析</p>
-                                <button class="btn btn-success" onclick="event.stopPropagation(); startAnalysis('stock')">
-                                    <i class="fas fa-play me-1"></i>开始股票分析
-                                </button>
-                                <button class="btn btn-outline-success ms-2" onclick="event.stopPropagation(); startAnalysis('stock_debug')">
-                                    <i class="fas fa-bug me-1"></i>调试模式
-                                </button>
-                            </div>
-                        </div>
+                    <div class="text-center mt-3">
+                        <button class="btn btn-primary btn-lg" onclick="startBatchAnalysis('etf')">
+                            <i class="fas fa-play me-2"></i>分析所有ETF
+                        </button>
+                        <button class="btn btn-outline-primary btn-lg ms-2" onclick="startBatchAnalysis('etf_debug')">
+                            <i class="fas fa-chart-bar me-2"></i>数据指标
+                        </button>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- 股票池分析区域 -->
+                <div class="mb-4">
+                    <h5 class="text-success mb-3">
+                        <i class="fas fa-chart-line me-2"></i>股票池分析
+                    </h5>
+                    <div id="stockPoolContainer" class="row">
+                        <!-- 股票标的将在这里动态加载 -->
+                    </div>
+                    <div class="text-center mt-3">
+                        <button class="btn btn-success btn-lg" onclick="startBatchAnalysis('stock')">
+                            <i class="fas fa-play me-2"></i>分析所有股票
+                        </button>
+                        <button class="btn btn-outline-success btn-lg ms-2" onclick="startBatchAnalysis('stock_debug')">
+                            <i class="fas fa-chart-bar me-2"></i>数据指标
+                        </button>
                     </div>
                 </div>
             </div>
@@ -51,17 +55,21 @@
     </div>
 </div>
 
-<!-- 加载状态 -->
-<div id="loadingSection" class="loading-spinner">
-    <div class="text-center">
-        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
-            <span class="visually-hidden">分析中...</span>
-        </div>
-        <h5 class="mt-3">AI分析进行中...</h5>
-        <p class="text-muted">正在获取数据并进行智能分析，请稍候</p>
-        <div class="progress mt-3" style="max-width: 400px; margin: 0 auto;">
-            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                 role="progressbar" style="width: 0%"></div>
+<!-- 加载状态弹窗 -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">分析中...</span>
+                </div>
+                <h5 class="mt-3" id="loadingTitle">AI分析进行中...</h5>
+                <p class="text-muted" id="loadingDescription">正在获取数据并进行智能分析，请稍候</p>
+                <div class="progress mt-3" style="max-width: 400px; margin: 0 auto;">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -116,29 +124,271 @@
         </div>
     </div>
 </div>
+
+<!-- AI分析结果弹窗 -->
+<div class="modal fade" id="aiAnalysisModal" tabindex="-1" aria-labelledby="aiAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiAnalysisModalLabel">
+                    <i class="fas fa-robot me-2"></i>AI分析结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="aiAnalysisContent">
+                    <!-- AI分析内容将在这里动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="exportAIAnalysis()">
+                    <i class="fas fa-download me-1"></i>导出结果
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据指标弹窗 -->
+<div class="modal fade" id="dataIndicatorsModal" tabindex="-1" aria-labelledby="dataIndicatorsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dataIndicatorsModalLabel">
+                    <i class="fas fa-chart-bar me-2"></i>数据指标分析
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dataIndicatorsContent">
+                    <!-- 数据指标内容将在这里动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="exportDataIndicators()">
+                    <i class="fas fa-download me-1"></i>导出数据
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
     let currentAnalysisData = null;
+    let etfPools = [];
+    let stockPools = [];
 
-    // 开始分析
-    async function startAnalysis(type) {
-        // 显示加载状态
-        document.getElementById('loadingSection').style.display = 'block';
-        document.getElementById('resultsSection').style.display = 'none';
+    // 页面加载时获取池子数据
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPoolData();
+    });
+
+    // 加载池子数据
+    async function loadPoolData() {
+        try {
+            const response = await fetch('/api/pools');
+            const data = await response.json();
+            
+            if (data.success) {
+                etfPools = data.etf_pools || [];
+                stockPools = data.stock_pools || [];
+                renderPoolCards();
+            } else {
+                showAlert('加载池子数据失败: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            showAlert('加载池子数据失败: ' + error.message, 'danger');
+        }
+    }
+
+    // 渲染池子卡片
+    function renderPoolCards() {
+        renderPoolCardsByType('etf', etfPools);
+        renderPoolCardsByType('stock', stockPools);
+    }
+
+    // 渲染指定类型的池子卡片
+    function renderPoolCardsByType(type, pools) {
+        const container = document.getElementById(type + 'PoolContainer');
+        if (!container) return;
+
+        if (pools.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle me-2"></i>
+                        暂无${type === 'etf' ? 'ETF' : '股票'}标的，请先前往<a href="/pools" class="alert-link">标的池管理</a>添加
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = pools.map(pool => `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100 border-${type === 'etf' ? 'primary' : 'success'}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">${pool.name}</h6>
+                            <span class="badge bg-${type === 'etf' ? 'primary' : 'success'}">${pool.code}</span>
+                        </div>
+                        <p class="card-text text-muted small mb-3">${type === 'etf' ? 'ETF基金' : '股票'}</p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-${type === 'etf' ? 'primary' : 'success'} btn-sm" 
+                                    onclick="startIndividualAnalysis('${type}', '${pool.code}', '${pool.name}')">
+                                <i class="fas fa-chart-line me-1"></i>单独分析
+                            </button>
+                            <button class="btn btn-outline-${type === 'etf' ? 'primary' : 'success'} btn-sm" 
+                                    onclick="startIndividualAnalysis('${type}_debug', '${pool.code}', '${pool.name}')">
+                                <i class="fas fa-chart-bar me-1"></i>数据指标
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 开始个别分析
+    async function startIndividualAnalysis(type, code, name) {
+        // 显示加载弹窗
+        showLoadingModal(type);
         
         // 重置进度条
         const progressBar = document.getElementById('progressBar');
         progressBar.style.width = '0%';
         
-        // 模拟进度更新
+        // 智能进度更新 - 更接近实际分析进度
         let progress = 0;
+        let startTime = Date.now();
         const progressInterval = setInterval(() => {
-            progress += Math.random() * 15;
-            if (progress > 90) progress = 90;
+            const elapsed = Date.now() - startTime;
+            const elapsedSeconds = elapsed / 1000;
+            
+            // 根据时间动态调整进度
+            if (elapsedSeconds < 5) {
+                // 前5秒：快速到30%
+                progress = Math.min(30, elapsedSeconds * 6);
+            } else if (elapsedSeconds < 15) {
+                // 5-15秒：缓慢增长到60%
+                progress = 30 + (elapsedSeconds - 5) * 3;
+            } else if (elapsedSeconds < 30) {
+                // 15-30秒：更慢增长到75%
+                progress = 60 + (elapsedSeconds - 15) * 1;
+            } else {
+                // 30秒后：缓慢增长到85%
+                progress = Math.min(85, 75 + (elapsedSeconds - 30) * 0.3);
+            }
+            
             progressBar.style.width = progress + '%';
-        }, 500);
+        }, 500); // 每0.5秒更新一次
+        
+        try {
+            const response = await fetch(`/api/analyze/${type}?code=${code}&name=${encodeURIComponent(name)}`);
+            
+            // 检查响应状态
+            if (!response.ok) {
+                throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+            }
+            
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error(`服务器返回了非JSON响应: ${text.substring(0, 100)}...`);
+            }
+            
+            const result = await response.json();
+            
+            // 完成进度条
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+            
+            if (result.success) {
+                currentAnalysisData = result.data;
+                displayResults(result.data, type, result.timestamp);
+            } else {
+                const errorMessage = `
+                    <strong>分析失败！</strong><br>
+                    <small>${result.error || '未知错误'}</small><br>
+                    <small class="mt-2">请检查：<br>
+                    1. 标的池是否已配置<br>
+                    2. AI模型配置是否正确<br>
+                    3. API密钥是否有效</small>
+                `;
+                showAlert(errorMessage, 'danger');
+            }
+        } catch (error) {
+            clearInterval(progressInterval);
+            let errorMessage = '';
+            
+            if (error.message.includes('Unexpected token')) {
+                errorMessage = `
+                    <strong>数据获取失败！</strong><br>
+                    <small>服务器返回了错误页面，可能是数据源暂时不可用</small><br>
+                    <small class="mt-2">建议：<br>
+                    1. 稍后重试<br>
+                    2. 检查网络连接<br>
+                    3. 联系管理员</small>
+                `;
+            } else if (error.message.includes('504') || error.message.includes('Gateway Timeout')) {
+                errorMessage = `
+                    <strong>请求超时！</strong><br>
+                    <small>数据获取时间过长，请稍后重试</small><br>
+                    <small class="mt-2">这通常是由于数据源反爬虫限制导致的</small>
+                `;
+            } else {
+                errorMessage = `
+                    <strong>分析请求失败！</strong><br>
+                    <small>错误详情：${error.message}</small><br>
+                    <small class="mt-2">请刷新页面后重试</small>
+                `;
+            }
+            
+            showAlert(errorMessage, 'danger');
+        } finally {
+            // 隐藏加载弹窗
+            hideLoadingModal();
+        }
+    }
+
+    // 开始批量分析
+    async function startBatchAnalysis(type) {
+        // 显示加载弹窗
+        showLoadingModal(type);
+        
+        // 重置进度条
+        const progressBar = document.getElementById('progressBar');
+        progressBar.style.width = '0%';
+        
+        // 智能进度更新 - 更接近实际分析进度
+        let progress = 0;
+        let startTime = Date.now();
+        const progressInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const elapsedSeconds = elapsed / 1000;
+            
+            // 根据时间动态调整进度
+            if (elapsedSeconds < 5) {
+                // 前5秒：快速到30%
+                progress = Math.min(30, elapsedSeconds * 6);
+            } else if (elapsedSeconds < 15) {
+                // 5-15秒：缓慢增长到60%
+                progress = 30 + (elapsedSeconds - 5) * 3;
+            } else if (elapsedSeconds < 30) {
+                // 15-30秒：更慢增长到75%
+                progress = 60 + (elapsedSeconds - 15) * 1;
+            } else {
+                // 30秒后：缓慢增长到85%
+                progress = Math.min(85, 75 + (elapsedSeconds - 30) * 0.3);
+            }
+            
+            progressBar.style.width = progress + '%';
+        }, 500); // 每0.5秒更新一次
         
         try {
             const response = await fetch(`/api/analyze/${type}`);
@@ -204,9 +454,14 @@
             
             showAlert(errorMessage, 'danger');
         } finally {
-            // 隐藏加载状态
-            document.getElementById('loadingSection').style.display = 'none';
+            // 隐藏加载弹窗
+            hideLoadingModal();
         }
+    }
+
+    // 开始分析（保持向后兼容）
+    async function startAnalysis(type) {
+        return startBatchAnalysis(type);
     }
 
     // 显示分析结果
@@ -220,8 +475,8 @@
         const typeNames = {
             'etf': 'ETF分析',
             'stock': '股票分析',
-            'etf_debug': 'ETF调试',
-            'stock_debug': '股票调试'
+            'etf_debug': 'ETF数据指标',
+            'stock_debug': '股票数据指标'
         };
         analysisTypeSpan.textContent = typeNames[type] || type;
         analysisTimeSpan.textContent = formatDateTime(timestamp);
@@ -230,21 +485,23 @@
         let html = '';
         
         if (type.includes('debug')) {
-            // 调试模式结果
-            html = generateDebugResults(data);
+            // 数据指标结果 - 使用弹窗显示
+            showDataIndicatorsModal(data, type);
         } else {
-            // AI分析结果
-            html = generateAIResults(data);
+            // AI分析结果 - 也使用弹窗显示
+            showAIAnalysisModal(data, type);
         }
-        
-        resultsContent.innerHTML = html;
-        resultsSection.style.display = 'block';
-        
-        // 滚动到结果区域
-        resultsSection.scrollIntoView({ behavior: 'smooth' });
         
         // 更新最近分析
         updateRecentAnalysis(type, timestamp, data ? data.length : 0);
+    }
+
+    // 获取评分样式类
+    function getScoreClass(score) {
+        if (score >= 80) return 'excellent';
+        if (score >= 60) return 'good';
+        if (score >= 40) return 'average';
+        return 'poor';
     }
 
     // 生成AI分析结果HTML
@@ -256,7 +513,15 @@
         let html = '<div class="row">';
         
         data.forEach((item, index) => {
-            const scoreClass = getScoreClass(item.ai_score || 0);
+            // 处理数据缺失情况
+            let scoreClass, scoreDisplay;
+            if (item.ai_score === "数据缺失") {
+                scoreClass = "score-badge-data-missing";
+                scoreDisplay = "数据缺失";
+            } else {
+                scoreClass = getScoreClass(item.ai_score || 0);
+                scoreDisplay = item.ai_score || 0;
+            }
             const rank = index + 1;
             
             html += `
@@ -274,7 +539,7 @@
                                     </p>
                                 </div>
                                 <div class="score-badge ${scoreClass}">
-                                    ${item.ai_score || 0}
+                                    ${scoreDisplay}
                                 </div>
                             </div>
                             
@@ -293,6 +558,15 @@
                                 <p class="small">${item.ai_comment || '暂无点评'}</p>
                             </div>
                             
+                            <div class="mb-3">
+                                <small class="text-muted">日线趋势</small>
+                                <p class="mb-0">
+                                    <span class="badge ${getStatusBadgeClass(item.daily_trend_status)}">
+                                        ${item.daily_trend_status || '未知状态'}
+                                    </span>
+                                </p>
+                            </div>
+                            
                             ${item.analysis_points && item.analysis_points.length > 0 ? `
                                 <div>
                                     <small class="text-muted">技术信号</small>
@@ -300,6 +574,19 @@
                                         ${item.analysis_points.map(point => 
                                             `<span class="badge bg-light text-dark me-1 mb-1">${point}</span>`
                                         ).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${item.technical_indicators_summary && item.technical_indicators_summary.length > 0 ? `
+                                <div>
+                                    <small class="text-muted">技术指标</small>
+                                    <div class="mt-1 small">
+                                        ${item.technical_indicators_summary.slice(0, 3).map(indicator => 
+                                            `<div class="mb-1">${indicator}</div>`
+                                        ).join('')}
+                                        ${item.technical_indicators_summary.length > 3 ? 
+                                            `<div class="text-muted">...还有${item.technical_indicators_summary.length - 3}个指标</div>` : ''}
                                     </div>
                                 </div>
                             ` : ''}
@@ -313,10 +600,10 @@
         return html;
     }
 
-    // 生成调试结果HTML
+    // 生成数据指标结果HTML
     function generateDebugResults(data) {
         if (!data || data.length === 0) {
-            return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无调试数据</p></div>';
+            return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无数据指标</p></div>';
         }
         
         let html = '<div class="row">';
@@ -357,7 +644,7 @@
                                 <div class="col-md-3">
                                     <h6>技术指标</h6>
                                     ${item.technical_indicators_summary && item.technical_indicators_summary.length > 0 ? 
-                                        `<div class="small">${item.technical_indicators_summary.slice(0, 3).map(indicator => 
+                                        `<div class="small">${item.technical_indicators_summary.map(indicator => 
                                             `<div class="mb-1">${indicator}</div>`
                                         ).join('')}</div>` : 
                                         '<span class="text-muted">数据不足</span>'
@@ -380,8 +667,8 @@
         const typeNames = {
             'etf': 'ETF分析',
             'stock': '股票分析',
-            'etf_debug': 'ETF调试',
-            'stock_debug': '股票调试'
+            'etf_debug': 'ETF数据指标',
+            'stock_debug': '股票数据指标'
         };
         
         const html = `
@@ -428,10 +715,219 @@
         showAlert('分析结果已导出', 'success');
     }
 
+    // 获取状态徽章样式类
+    function getStatusBadgeClass(status) {
+        if (!status) return 'bg-secondary';
+        
+        if (status.includes('强势上升') || status.includes('上升趋势')) {
+            return 'bg-success';
+        } else if (status.includes('下降趋势') || status.includes('弱势')) {
+            return 'bg-danger';
+        } else if (status.includes('震荡') || status.includes('中性')) {
+            return 'bg-warning text-dark';
+        } else if (status.includes('数据不足') || status.includes('数据异常')) {
+            return 'bg-info';
+        } else if (status.includes('分析失败') || status.includes('错误')) {
+            return 'bg-danger';
+        } else {
+            return 'bg-secondary';
+        }
+    }
+
+    // 显示AI分析结果弹窗
+    function showAIAnalysisModal(data, type) {
+        const modal = new bootstrap.Modal(document.getElementById('aiAnalysisModal'));
+        const content = document.getElementById('aiAnalysisContent');
+        
+        // 更新弹窗标题
+        const title = document.getElementById('aiAnalysisModalLabel');
+        const typeNames = {
+            'etf': 'ETF AI分析结果',
+            'stock': '股票AI分析结果'
+        };
+        title.innerHTML = `<i class="fas fa-robot me-2"></i>${typeNames[type] || 'AI分析结果'}`;
+        
+        // 生成AI分析内容
+        content.innerHTML = generateAIResults(data);
+        
+        // 显示弹窗
+        modal.show();
+    }
+
+    // 显示数据指标弹窗
+    function showDataIndicatorsModal(data, type) {
+        const modal = new bootstrap.Modal(document.getElementById('dataIndicatorsModal'));
+        const content = document.getElementById('dataIndicatorsContent');
+        
+        // 更新弹窗标题
+        const title = document.getElementById('dataIndicatorsModalLabel');
+        const typeNames = {
+            'etf_debug': 'ETF数据指标分析',
+            'stock_debug': '股票数据指标分析'
+        };
+        title.innerHTML = `<i class="fas fa-chart-bar me-2"></i>${typeNames[type] || '数据指标分析'}`;
+        
+        // 生成数据指标内容
+        content.innerHTML = generateDataIndicatorsContent(data);
+        
+        // 显示弹窗
+        modal.show();
+    }
+
+    // 生成数据指标内容
+    function generateDataIndicatorsContent(data) {
+        if (!data || data.length === 0) {
+            return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无数据指标</p></div>';
+        }
+        
+        let html = '<div class="row">';
+        
+        data.forEach((item, index) => {
+            html += `
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <h5>${item.name || '未知'}</h5>
+                                    <p class="text-muted mb-1"><code>${item.code || 'N/A'}</code></p>
+                                    <p class="mb-1">最新价：<strong>${item.price || 'N/A'}</strong></p>
+                                    <p class="mb-0">
+                                        涨跌幅：
+                                        <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                            ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                        </span>
+                                    </p>
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>日线趋势</h6>
+                                    <p class="mb-0">
+                                        <span class="badge ${getStatusBadgeClass(item.daily_trend_status)}">
+                                            ${item.daily_trend_status || '未知状态'}
+                                        </span>
+                                    </p>
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>盘中信号</h6>
+                                    ${item.intraday_signals && item.intraday_signals.length > 0 ? 
+                                        item.intraday_signals.map(signal => 
+                                            `<span class="badge bg-info me-1 mb-1">${signal}</span>`
+                                        ).join('') : 
+                                        '<span class="text-muted">无特殊信号</span>'
+                                    }
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <h6>技术指标</h6>
+                                    ${item.technical_indicators_summary && item.technical_indicators_summary.length > 0 ? 
+                                        `<div class="small">${item.technical_indicators_summary.map(indicator => 
+                                            `<div class="mb-1">${indicator}</div>`
+                                        ).join('')}</div>` : 
+                                        '<span class="text-muted">数据不足</span>'
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    // 导出AI分析结果
+    function exportAIAnalysis() {
+        if (!currentAnalysisData) {
+            showAlert('暂无数据可导出', 'warning');
+            return;
+        }
+        
+        const dataStr = JSON.stringify(currentAnalysisData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ai_analysis_${new Date().getTime()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        showAlert('AI分析结果已导出', 'success');
+    }
+
+    // 导出数据指标
+    function exportDataIndicators() {
+        if (!currentAnalysisData) {
+            showAlert('暂无数据可导出', 'warning');
+            return;
+        }
+        
+        const dataStr = JSON.stringify(currentAnalysisData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `data_indicators_${new Date().getTime()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        showAlert('数据指标已导出', 'success');
+    }
+
+    // 显示加载弹窗
+    function showLoadingModal(type) {
+        const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        const title = document.getElementById('loadingTitle');
+        const description = document.getElementById('loadingDescription');
+        
+        if (type.includes('debug')) {
+            title.textContent = '数据指标获取中...';
+            description.textContent = '正在获取历史数据并计算技术指标，请稍候';
+        } else {
+            title.textContent = 'AI分析进行中...';
+            description.textContent = '正在获取数据并进行智能分析，请稍候';
+        }
+        
+        modal.show();
+    }
+
+    // 隐藏加载弹窗
+    function hideLoadingModal() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
+        if (modal) {
+            modal.hide();
+        }
+    }
+
     // 页面加载时检查是否有最近的分析
     document.addEventListener('DOMContentLoaded', function() {
         // 这里可以加载最近的分析历史
         // loadRecentAnalysis();
     });
 </script>
+
+<style>
+.score-badge {
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    min-width: 80px;
+    text-align: center;
+}
+
+.score-badge.excellent { background-color: #d4edda; color: #155724; }
+.score-badge.good { background-color: #cce5ff; color: #004085; }
+.score-badge.average { background-color: #fff3cd; color: #856404; }
+.score-badge.poor { background-color: #f8d7da; color: #721c24; }
+.score-badge-data-missing { 
+    background-color: #f8f9fa; 
+    color: #6c757d; 
+    border: 2px dashed #dee2e6;
+    font-size: 1rem;
+}
+</style>
 {% endblock %}
