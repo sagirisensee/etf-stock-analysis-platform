@@ -40,11 +40,7 @@ def _create_realtime_data_from_history(daily_trends_list, core_pool):
                 
                 # 根据标的类型处理涨跌幅
                 change_pct = latest.get('涨跌幅', 0)
-                if item_type == 'etf':
-                    # ETF类型，涨跌幅需要乘以100转换为百分比
-                    if change_pct != 0:
-                        change_pct = change_pct * 100
-                # 股票类型，涨跌幅已经是百分比形式，直接使用
+                # 历史数据中的涨跌幅已经在data_fetcher中处理过，直接使用
                 
                 realtime_data.append({
                     '代码': code,

@@ -258,6 +258,13 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         if '日期' in daily_df.columns:
             daily_df.rename(columns={'日期': 'date'}, inplace=True)
         
+        # ETF历史数据涨跌幅处理：ETF类型，必须乘以100转换为百分比
+        if '涨跌幅' in daily_df.columns:
+            daily_df['涨跌幅'] = pd.to_numeric(daily_df['涨跌幅'], errors='coerce')
+            # ETF历史数据源返回小数形式，必须转换为百分比
+            daily_df['涨跌幅'] = daily_df['涨跌幅'] * 100
+            logger.info("🔄 [ETF历史数据] 涨跌幅从小数转换为百分比")
+        
         # 数据处理完成
         return daily_df
     except Exception as e:
