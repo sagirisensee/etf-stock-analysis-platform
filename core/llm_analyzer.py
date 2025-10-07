@@ -100,17 +100,19 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         "     * MACD指标（30%权重）：金叉/死叉、零轴位置、红绿柱变化\n"
         "     * 布林带指标（20%权重）：突破/跌破上轨下轨、中轨位置\n"
         "     * 其他指标（10%权重）：成交量、趋势强度、震荡情况\n"
-        "   - 评分标准：\n"
-        "     * 90-100分：技术面极强，多个重要指标显示强烈买入信号\n"
-        "     * 80-89分：技术面较强，主要指标显示买入信号\n"
-        "     * 70-79分：技术面偏强，部分指标显示买入信号\n"
-        "     * 60-69分：技术面中性偏强，指标混合但偏多\n"
-        "     * 50-59分：技术面中性，指标无明显方向\n"
-        "     * 40-49分：技术面中性偏弱，指标混合但偏空\n"
-        "     * 30-39分：技术面偏弱，部分指标显示卖出信号\n"
-        "     * 20-29分：技术面较弱，主要指标显示卖出信号\n"
-        "     * 10-19分：技术面极弱，多个指标显示强烈卖出信号\n"
-        "     * 0-9分：技术面极差，数据严重缺失或指标全部显示卖出\n"
+        "   - 评分标准（根据实际情况评分）：\n"
+        "     * 95-99分：技术面极强，多个重要指标显示强烈买入信号，无明显风险\n"
+        "     * 85-94分：技术面很强，主要指标显示买入信号，风险较小\n"
+        "     * 75-84分：技术面较强，部分指标显示买入信号，需注意风险\n"
+        "     * 65-74分：技术面偏强，指标混合但偏多，有一定风险\n"
+        "     * 55-64分：技术面中性偏强，指标混合，需要谨慎\n"
+        "     * 45-54分：技术面中性，指标无明显方向\n"
+        "     * 35-44分：技术面中性偏弱，指标混合但偏空\n"
+        "     * 25-34分：技术面偏弱，部分指标显示卖出信号\n"
+        "     * 15-24分：技术面较弱，主要指标显示卖出信号\n"
+        "     * 5-14分：技术面极弱，多个指标显示强烈卖出信号\n"
+        "     * 0-4分：技术面极差，数据严重缺失或指标全部显示卖出\n"
+        "   - **重要：如果点评中提到'风险'、'谨慎'、'警惕'、'回调'等词汇，评分应该相应降低**\n"
         "   - **重要：必须仔细分析每个标的的具体技术指标表现，给出差异化的评分**。\n"
         "   - 撰写一句精炼的交易点评（作为comment字段内容）。\n"
         "   - **点评应是流畅的自然语言字符串，而不是嵌套的JSON或字典**。\n\n"
@@ -175,7 +177,9 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
             if adjusted_score is None:
                 return None, "数据缺失，无法进行评分分析"
             
-            score = max(0, min(100, adjusted_score))
+            # 根据点评内容进行智能调整
+            score = _adjust_score_by_comment(adjusted_score, comment)
+            score = max(0, min(99, score))  # 最高99分，保留1分空间给完美情况
             score = round(score, 1)  # 保留一位小数
         
         return score, comment
@@ -232,6 +236,49 @@ def _parse_perplexity_response(raw_content):
     # 最后的兜底方案
     logger.warning(f"Perplexity AI响应解析失败，使用默认值: {raw_content[:200]}...")
     return 50, "Perplexity AI分析完成，但响应格式需要优化"
+
+def _adjust_score_by_comment(score, comment):
+    """
+    根据点评内容智能调整评分
+    如果点评中提到风险、谨慎、警惕等词汇，应该降低评分
+    """
+    if not comment:
+        return score
+    
+    comment_lower = comment.lower()
+    
+    # 风险词汇，需要降低评分
+    risk_keywords = [
+        '风险', '谨慎', '警惕', '回调', '调整', '下跌', '压力', '阻力',
+        '超买', '超卖', '震荡', '不确定', '观望', '注意', '关注',
+        '空头', '减弱', '缩短', '死叉', '跌破', '下方', '偏弱'
+    ]
+    
+    # 积极词汇，可以保持或略微提高评分
+    positive_keywords = [
+        '强势', '突破', '金叉', '多头', '上方', '增长', '增强',
+        '看好', '乐观', '积极', '买入', '持有', '推荐'
+    ]
+    
+    # 计算风险词汇数量
+    risk_count = sum(1 for keyword in risk_keywords if keyword in comment_lower)
+    positive_count = sum(1 for keyword in positive_keywords if keyword in comment_lower)
+    
+    # 根据风险词汇调整评分
+    if risk_count > 0:
+        # 每个风险词汇降低2-5分
+        risk_adjustment = min(risk_count * 3, 15)  # 最多降低15分
+        score = max(score - risk_adjustment, 0)
+        logger.info(f"检测到{risk_count}个风险词汇，降低评分{risk_adjustment}分")
+    
+    # 如果只有积极词汇且没有风险词汇，可以略微提高
+    elif positive_count > 0 and risk_count == 0:
+        # 最多提高3分
+        positive_adjustment = min(positive_count, 3)
+        score = min(score + positive_adjustment, 99)
+        logger.info(f"检测到{positive_count}个积极词汇，提高评分{positive_adjustment}分")
+    
+    return score
 
 def _calculate_weighted_score(base_score, technical_indicators):
     """
@@ -318,7 +365,7 @@ def _calculate_weighted_score(base_score, technical_indicators):
     signal_ratio = (positive_signals - negative_signals) / max(1, len(technical_indicators))
     
     # 权重调整（基于总权重和信号强度）
-    weight_adjustment = total_weight * signal_ratio * 20  # 最大调整±20分
+    weight_adjustment = total_weight * signal_ratio * 10  # 最大调整±10分，避免过高分数
     
     # 应用调整
     adjusted_score = base_score + weight_adjustment
