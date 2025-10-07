@@ -12,7 +12,63 @@ from .indicators import judge_trend_status
 
 logger = logging.getLogger(__name__)
 pd.set_option('display.max_rows', None) 
-pd.set_option('display.max_columns', None) 
+pd.set_option('display.max_columns', None)
+
+def _create_realtime_data_from_history(daily_trends_list, core_pool):
+    """
+    当实时数据获取失败时，使用历史数据的最新价格创建实时数据
+    """
+    try:
+        logger.info("🔄 正在从历史数据创建实时数据...")
+        
+        realtime_data = []
+        for item in core_pool:
+            code = item['code']
+            name = item['name']
+            item_type = item.get('type', 'stock')  # 获取标的类型
+            
+            # 查找对应的历史数据
+            history_data = None
+            for trend in daily_trends_list:
+                if trend['code'] == code:
+                    history_data = trend.get('raw_debug_data', {}).get('history_data')
+                    break
+            
+            if history_data is not None and not history_data.empty:
+                # 使用最新一天的数据作为实时数据
+                latest = history_data.iloc[-1]
+                
+                # 根据标的类型处理涨跌幅
+                change_pct = latest.get('涨跌幅', 0)
+                if item_type == 'etf':
+                    # ETF类型，涨跌幅需要乘以100转换为百分比
+                    if change_pct != 0:
+                        change_pct = change_pct * 100
+                # 股票类型，涨跌幅已经是百分比形式，直接使用
+                
+                realtime_data.append({
+                    '代码': code,
+                    '名称': name,
+                    '最新价': latest.get('close', 0),
+                    '涨跌幅': change_pct,
+                    '涨跌额': latest.get('涨跌额', 0),
+                    '昨收': latest.get('close', 0)  # 使用收盘价作为昨收
+                })
+                logger.info(f"✅ 从历史数据创建实时数据: {name}({code}) - 价格: {latest.get('close', 0)}")
+            else:
+                logger.warning(f"⚠️ 无法找到 {name}({code}) 的历史数据")
+        
+        if realtime_data:
+            df = pd.DataFrame(realtime_data)
+            logger.info(f"✅ 成功创建实时数据，包含 {len(df)} 个标的")
+            return df
+        else:
+            logger.error("❌ 无法从历史数据创建任何实时数据")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ 从历史数据创建实时数据失败: {e}", exc_info=True)
+        return None 
 
 async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_func, core_pool):
     logger.info("启动AI驱动的统一全面分析引擎...")
@@ -20,7 +76,11 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
     daily_trends_task = _get_daily_trends_generic(get_daily_history_func, core_pool)
     realtime_data_df, daily_trends_list = await asyncio.gather(realtime_data_df_task, daily_trends_task)
     if realtime_data_df is None:
-        return [{"name": "错误", "code": "", "ai_score": 0, "ai_comment": "获取实时数据失败，无法分析。"}]
+        logger.warning("实时数据获取失败，尝试使用历史数据作为替代")
+        # 使用历史数据的最新价格作为实时数据
+        realtime_data_df = _create_realtime_data_from_history(daily_trends_list, core_pool)
+        if realtime_data_df is None:
+            return [{"name": "错误", "code": "", "ai_score": 0, "ai_comment": "获取实时数据失败，无法分析。"}]
     daily_trends_map = {item['code']: item for item in daily_trends_list}
     # 根据core_pool中的type字段判断，而不是根据函数引用
     if core_pool and core_pool[0].get('type') == 'stock':
@@ -126,8 +186,8 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             if 'close' not in result.columns: # Removed 'high' and 'low' from this critical check
                 analysis_report.append({**item_info, 'status': '🟡 数据列缺失', 'technical_indicators_summary': ["获取到的历史数据缺少必要的'close'列。"]})
                 continue
-            if len(result) < 60:
-                analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于60天)', 'technical_indicators_summary': ["历史数据不足60天，部分长期指标无法计算。"], 'raw_debug_data': {}})
+            if len(result) < 61:
+                analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于61天)', 'technical_indicators_summary': ["历史数据不足61天，无法判断60日均线趋势。"], 'raw_debug_data': {}})
                 continue
             if result['close'].isnull().all():
                 analysis_report.append({**item_info, 'status': '🟡 数据计算失败', 'technical_indicators_summary': ["'close' 列数据全为空值，无法计算指标。"]})
@@ -172,7 +232,9 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 **item_info,
                 'status': status,
                 'technical_indicators_summary': trend_signals,
-                'raw_debug_data': {}
+                'raw_debug_data': {
+                    'history_data': result  # 保存历史数据用于创建实时数据
+                }
             })
         except Exception as e:
             logger.error(f"💥 {name}({code}) 分析时出错: {e}", exc_info=True)
@@ -223,9 +285,12 @@ class _IntradaySignalGenerator:
         points = []
         code = item_series.get('代码')
         raw_change = item_series.get('涨跌幅', 0)
+        # 根据标的类型处理涨跌幅
         if self.item_type == "stock":
-            change = raw_change * 100
+            # 股票类型，涨跌幅已经是百分比形式，直接使用
+            change = raw_change
         else:
+            # ETF类型，涨跌幅已经是百分比形式，直接使用
             change = raw_change
         if change > 2.5: points.append("日内大幅上涨")
         if change < -2.5: points.append("日内大幅下跌")

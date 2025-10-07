@@ -77,8 +77,9 @@ class DataConfig:
     def __init__(self):
         # 根据需要的技术指标调整天数
         # 当前使用: SMA_5, SMA_10, SMA_20, SMA_60, MACD(26), 布林带(20)
-        self.max_days = int(os.getenv('HISTORY_DATA_DAYS', '90'))  # 默认90天，足够60日均线
-        self.min_days = 60  # 最少60天，保证SMA_60计算
+        # 为了判断60日均线趋势，需要至少61天数据（当前天 + 前一天）
+        self.max_days = int(os.getenv('HISTORY_DATA_DAYS', '120'))  # 默认120天，确保有足够数据判断60日均线趋势
+        self.min_days = 61  # 最少61天，保证60日均线趋势判断
     
     def get_date_range(self):
         """获取数据日期范围"""
@@ -198,10 +199,17 @@ def get_all_etf_spot_realtime():
             # 只对存在的列进行dropna
             available_cols = [col for col in numeric_cols if col in df.columns]
             df.dropna(subset=available_cols, inplace=True)
-            # 计算涨跌幅
-            df['涨跌幅'] = 0.0
-            mask = df['昨收'] != 0
-            df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
+            # ETF涨跌幅处理：ETF类型，必须乘以100转换为百分比
+            if '涨跌幅' in df.columns:
+                df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
+                # ETF数据源返回小数形式，必须转换为百分比
+                df['涨跌幅'] = df['涨跌幅'] * 100
+                logger.info("🔄 [ETF实时数据] 涨跌幅从小数转换为百分比")
+            else:
+                # 如果没有涨跌幅列，则计算
+                df['涨跌幅'] = 0.0
+                mask = df['昨收'] != 0
+                df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
             return df
             
         except Exception as e:
@@ -264,11 +272,14 @@ def get_all_stock_spot_realtime():
         # 应用智能延迟控制
         api_name = "stock_zh_a_spot_em"
         delay = anti_crawling.get_smart_delay(api_name)
+        logger.info(f"⏱️ [股票实时数据] 延迟 {delay:.2f} 秒后开始获取数据")
         time.sleep(delay)
         
         # 使用专门获取股票实时行情的接口
         # 调用股票实时数据接口
+        logger.info("📡 [股票实时数据] 正在调用 ak.stock_zh_a_spot_em()")
         df = ak.stock_zh_a_spot_em()
+        logger.info(f"✅ [股票实时数据] 原始数据获取成功，形状: {df.shape}")
         
         # 记录成功请求
         anti_crawling.record_request(api_name)
@@ -284,20 +295,32 @@ def get_all_stock_spot_realtime():
         }
         
         # 重命名列
+        logger.info(f"📋 [股票实时数据] 原始列名: {list(df.columns)}")
         df = df.rename(columns=column_mapping)
+        logger.info(f"📋 [股票实时数据] 重命名后列名: {list(df.columns)}")
         
         numeric_cols = ['最新价', '昨收', '成交额']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         df.dropna(subset=numeric_cols, inplace=True)
-        # 计算涨跌幅
-        df['涨跌幅'] = 0.0
-        mask = df['昨收'] != 0
-        df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收'])
+        logger.info(f"📊 [股票实时数据] 数据清理后形状: {df.shape}")
+        
+        # 股票涨跌幅处理：股票类型，直接使用（已经是百分比形式）
+        if '涨跌幅' in df.columns:
+            df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
+            # 股票数据源返回百分比形式，直接使用
+            logger.info("✅ [股票实时数据] 涨跌幅已经是百分比形式，直接使用")
+        else:
+            # 如果没有涨跌幅列，则计算
+            df['涨跌幅'] = 0.0
+            mask = df['昨收'] != 0
+            df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
+        
+        logger.info(f"✅ [股票实时数据] 处理完成，最终形状: {df.shape}")
         return df
     except Exception as e:
-        logger.error(f" 获取股票实时数据失败: {e}", exc_info=True)
+        logger.error(f"💥 [股票实时数据] 获取失败: {e}", exc_info=True)
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=8, max=120))

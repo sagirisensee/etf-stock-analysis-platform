@@ -1,5 +1,18 @@
 import pandas as pd
 
+def _get_trend_description(length):
+    """获取均线趋势描述"""
+    if length == 5:
+        return "短期趋势"
+    elif length == 10:
+        return "短期趋势"
+    elif length == 20:
+        return "中期趋势"
+    elif length == 60:
+        return "中长期趋势"
+    else:
+        return "趋势"
+
 def analyze_bollinger(result, latest, prev_latest, trend_signals):
     try:
         upper = latest.get('BBU_20_2.0')
@@ -165,22 +178,54 @@ def analyze_ma(result, latest, prev_latest, trend_signals):
                 # 如果连当前值都没有，才报告数据缺失
                 trend_signals.append(f"{s_len}日与{l_len}日均线数据缺失，无法判断交叉。")
         
-        # 60日均线趋势 (Long-term trend)
-        sma_60_latest = latest.get('SMA_60')
-        sma_60_prev = prev_latest.get('SMA_60')
-
-        if pd.notna(sma_60_latest) and pd.notna(sma_60_prev):
-            if sma_60_latest > sma_60_prev:
-                trend_signals.append("60日均线趋势向上（中长期趋势积极）。")
-            elif sma_60_latest < sma_60_prev:
-                trend_signals.append("60日均线趋势向下（中长期趋势谨慎）。")
+        # 所有均线趋势判断
+        for length in [5, 10, 20, 60]:
+            col = f'SMA_{length}'
+            sma_latest = latest.get(col)
+            sma_prev = prev_latest.get(col)
+            
+            if pd.notna(sma_latest) and pd.notna(sma_prev):
+                # 有前一日数据，直接比较
+                if sma_latest > sma_prev:
+                    trend_signals.append(f"{length}日均线趋势向上（{_get_trend_description(length)}）。")
+                elif sma_latest < sma_prev:
+                    trend_signals.append(f"{length}日均线趋势向下（{_get_trend_description(length)}）。")
+                else:
+                    trend_signals.append(f"{length}日均线趋势持平（{_get_trend_description(length)}）。")
+            elif pd.notna(sma_latest):
+                # 只有当前值，尝试与更早的数据比较来判断趋势
+                if len(result) >= 2:
+                    # 对于60日均线，需要检查更长的历史数据
+                    max_check_days = 20 if length == 60 else 10
+                    check_range = min(len(result), max_check_days)
+                    
+                    # 尝试获取前几天的均线值
+                    for i in range(2, check_range):
+                        prev_idx = -i
+                        sma_earlier = result[col].iloc[prev_idx]
+                        if pd.notna(sma_earlier):
+                            if sma_latest > sma_earlier:
+                                trend_signals.append(f"{length}日均线趋势向上（{_get_trend_description(length)}）。")
+                            elif sma_latest < sma_earlier:
+                                trend_signals.append(f"{length}日均线趋势向下（{_get_trend_description(length)}）。")
+                            else:
+                                trend_signals.append(f"{length}日均线趋势持平（{_get_trend_description(length)}）。")
+                            break
+                    else:
+                        # 如果找不到可比较的历史数据，提供更详细的信息
+                        if length == 60:
+                            # 对于60日均线，检查有多少个非NaN值
+                            non_nan_count = result[col].notna().sum()
+                            if non_nan_count == 1:
+                                trend_signals.append("60日均线当前值可用，但数据长度刚好60天，需要更多历史数据才能判断趋势变化。")
+                            else:
+                                trend_signals.append(f"60日均线当前值可用，但历史数据不足无法判断趋势变化（共{non_nan_count}个有效值）。")
+                        else:
+                            trend_signals.append(f"{length}日均线当前值可用，但历史数据不足无法判断趋势变化。")
+                else:
+                    trend_signals.append(f"{length}日均线当前值可用，但历史数据不足无法判断趋势变化。")
             else:
-                trend_signals.append("60日均线趋势持平（中长期趋势中性）。")
-        elif pd.notna(sma_60_latest):
-            # 如果只有当前值，至少可以判断当前状态
-            trend_signals.append("60日均线当前值可用，但无法判断趋势变化。")
-        else:
-            trend_signals.append("60日均线数据缺失，无法判断趋势。")
+                trend_signals.append(f"{length}日均线数据缺失，无法判断趋势。")
     except Exception as e: 
         trend_signals.append(f"均线分析异常：{e}，跳过分析。")
 

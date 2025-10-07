@@ -69,16 +69,6 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
     else:
         combined_data["盘中技术信号"] = [] # 确保始终是列表
     
-    # 添加调试日志
-    logger.info(f"=== LLM分析数据调试 ===")
-    logger.info(f"ETF名称: {etf_data.get('name')}")
-    logger.info(f"代码: {etf_data.get('code')}")
-    logger.info(f"日内涨跌幅: {etf_data.get('change', 0):.2f}%")
-    logger.info(f"日线趋势: {daily_trend_data.get('status')}")
-    logger.info(f"技术指标数量: {len(daily_trend_data.get('technical_indicators_summary', []))}")
-    logger.info(f"技术指标内容: {daily_trend_data.get('technical_indicators_summary', [])}")
-    logger.info(f"盘中信号: {etf_data.get('analysis_points', [])}")
-    logger.info(f"=== 调试结束 ===")
 
     # --- 2. 优化 system_prompt ---
     # 明确指示LLM如何利用 '详细技术指标分析列表'，并要求输出为一段自然语言的点评字符串
@@ -90,17 +80,24 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         "3. **即时信号**：盘中技术信号（如果有）。\n"
         "4. **详细技术面**：根据提供的'详细技术指标分析列表'，对均线、布林通道位置、MACD等进行综合分析，\n"
         "   - **务必提及列表中的每一项指标（即使是数据缺失或中性信号），并用清晰的自然语言描述其含义**。\n"
-        "   - 例如：'股价高于20日均线，短期趋势向上；MACD金叉，多头力量增强；成交量较60日均量显著放大，市场活跃。'\n"
+        "   - 例如：'股价高于20日均线，短期趋势向上；MACD金叉，多头力量增强；布林带突破上轨，市场活跃。'\n"
         "   - **避免直接引用列表中的原句，而是整合为连贯的分析性语句**。\n"
         "5. **综合评分和精炼点评**：\n"
         "   - **评分必须根据具体的技术指标表现进行差异化评分，不能给出相同的分数**。\n"
         "   - **每个投资标的的技术指标都不同，必须根据其独特的技术面表现给出不同的评分**。\n"
-        "   - **评分权重说明**：\n"
-        "     * 均线指标（40%权重）：金叉/死叉、多头/空头排列、均线位置关系\n"
-        "     * MACD指标（30%权重）：金叉/死叉、零轴位置、红绿柱变化\n"
-        "     * 布林带指标（20%权重）：突破/跌破上轨下轨、中轨位置\n"
-        "     * 其他指标（10%权重）：成交量、趋势强度、震荡情况\n"
-        "   - 评分标准（根据实际情况评分）：\n"
+        "   - **评分权重和标准**：\n"
+        "     * **均线指标（最重要，权重最高）**：\n"
+        "       - 重点关注：金叉/死叉信号、多头/空头排列、均线位置关系\n"
+        "       - 均线是技术分析的核心，应给予最高重视\n"
+        "     * **MACD指标（次重要，权重较高）**：\n"
+        "       - 重点关注：金叉/死叉、零轴位置、红绿柱变化\n"
+        "       - MACD是重要的趋势指标，应给予较高重视\n"
+        "     * **布林带指标（重要，权重中等）**：\n"
+        "       - 重点关注：突破/跌破上轨下轨、中轨位置\n"
+        "       - 布林带反映价格波动和支撑阻力，应给予中等重视\n"
+        "     * **其他指标（辅助，权重较低）**：\n"
+        "       - 趋势强度、震荡情况等作为辅助判断\n"
+        "   - **最终评分范围**：\n"
         "     * 95-99分：技术面极强，多个重要指标显示强烈买入信号，无明显风险\n"
         "     * 85-94分：技术面很强，主要指标显示买入信号，风险较小\n"
         "     * 75-84分：技术面较强，部分指标显示买入信号，需注意风险\n"
@@ -168,18 +165,20 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
             # OpenAI 兼容格式解析
             score, comment = _parse_openai_response(raw_content)
         
-        # 基于技术指标权重进行评分调整
+        # 直接使用LLM给出的分数，不进行算法调整
         if score is not None and isinstance(score, (int, float)):
-            # 根据技术指标重要性进行权重调整
-            adjusted_score = _calculate_weighted_score(score, daily_trend_data.get('technical_indicators_summary', []))
+            # 检查数据缺失情况
+            technical_indicators = daily_trend_data.get('technical_indicators_summary', [])
+            data_missing_keywords = ['数据缺失', '数据不足', '无法分析', '数据异常', '数据源暂时不可用']
+            has_data_missing = any(any(keyword in indicator.lower() for keyword in data_missing_keywords) 
+                                 for indicator in technical_indicators)
             
             # 如果数据缺失，返回特殊状态
-            if adjusted_score is None:
+            if has_data_missing:
                 return None, "数据缺失，无法进行评分分析"
             
-            # 根据点评内容进行智能调整
-            score = _adjust_score_by_comment(adjusted_score, comment)
-            score = max(0, min(99, score))  # 最高99分，保留1分空间给完美情况
+            # 限制分数范围在0-99之间
+            score = max(0, min(99, score))
             score = round(score, 1)  # 保留一位小数
         
         return score, comment
@@ -266,15 +265,15 @@ def _adjust_score_by_comment(score, comment):
     
     # 根据风险词汇调整评分
     if risk_count > 0:
-        # 每个风险词汇降低2-5分
-        risk_adjustment = min(risk_count * 3, 15)  # 最多降低15分
+        # 每个风险词汇降低1-3分，最多降低20分
+        risk_adjustment = min(risk_count * 2, 20)  # 最多降低20分
         score = max(score - risk_adjustment, 0)
         logger.info(f"检测到{risk_count}个风险词汇，降低评分{risk_adjustment}分")
     
     # 如果只有积极词汇且没有风险词汇，可以略微提高
     elif positive_count > 0 and risk_count == 0:
-        # 最多提高3分
-        positive_adjustment = min(positive_count, 3)
+        # 最多提高2分
+        positive_adjustment = min(positive_count, 2)
         score = min(score + positive_adjustment, 99)
         logger.info(f"检测到{positive_count}个积极词汇，提高评分{positive_adjustment}分")
     
@@ -365,7 +364,10 @@ def _calculate_weighted_score(base_score, technical_indicators):
     signal_ratio = (positive_signals - negative_signals) / max(1, len(technical_indicators))
     
     # 权重调整（基于总权重和信号强度）
-    weight_adjustment = total_weight * signal_ratio * 10  # 最大调整±10分，避免过高分数
+    # 限制调整幅度，确保不会超过99分
+    max_adjustment = min(99 - base_score, 15)  # 最多调整15分，且不能超过99分
+    weight_adjustment = total_weight * signal_ratio * 5  # 减少调整系数从10到5
+    weight_adjustment = max(-max_adjustment, min(max_adjustment, weight_adjustment))  # 限制调整范围
     
     # 应用调整
     adjusted_score = base_score + weight_adjustment
