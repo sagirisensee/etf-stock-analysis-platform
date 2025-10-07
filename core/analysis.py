@@ -38,12 +38,8 @@ def _create_realtime_data_from_history(daily_trends_list, core_pool):
                 # 使用最新一天的数据作为实时数据
                 latest = history_data.iloc[-1]
                 
-                # 根据标的类型处理涨跌幅
+                # 涨跌幅统一处理：直接使用原始数据
                 change_pct = latest.get('涨跌幅', 0)
-                if item_type == 'etf':
-                    # ETF类型，涨跌幅是小数形式，需要乘以100转换为百分比
-                    change_pct = change_pct * 100
-                # 股票类型，涨跌幅已经是百分比形式，直接使用
                 
                 realtime_data.append({
                     '代码': code,
@@ -285,12 +281,8 @@ class _IntradaySignalGenerator:
         code = item_series.get('代码')
         raw_change = item_series.get('涨跌幅', 0)
         # 根据标的类型处理涨跌幅
-        if self.item_type == "stock":
-            # 股票类型，涨跌幅已经是百分比形式，直接使用
-            change = raw_change
-        else:
-            # ETF类型，涨跌幅是小数形式，需要乘以100转换为百分比
-            change = raw_change * 100
+        # 涨跌幅统一处理：直接使用原始数据
+        change = raw_change
         if change > 2.5: points.append("日内大幅上涨")
         if change < -2.5: points.append("日内大幅下跌")
         return {
