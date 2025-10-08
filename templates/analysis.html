@@ -338,8 +338,7 @@
             } else if (error.message.includes('504') || error.message.includes('Gateway Timeout')) {
                 errorMessage = `
                     <strong>请求超时！</strong><br>
-                    <small>数据获取时间过长，请稍后重试</small><br>
-                    <small class="mt-2">这通常是由于数据源反爬虫限制导致的</small>
+                    <small>分析耗时过长，请稍后在分析结果处查看</small><br>
                 `;
             } else {
                 errorMessage = `
