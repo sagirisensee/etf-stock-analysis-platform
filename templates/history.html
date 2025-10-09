@@ -304,9 +304,18 @@
         
         if (data.results && data.results.length > 0) {
             data.results.forEach((item, index) => {
+                // 调试日志：检查历史详情数据
+                console.log(`🔍 [历史详情-${item.name}] 调试信息:`, {
+                    daily_trend_status: item.daily_trend_status,
+                    status: item.status,
+                    type: typeof item.daily_trend_status,
+                    isFalsy: !item.daily_trend_status,
+                    finalValue: item.daily_trend_status || '未知状态'
+                });
+                
                 const score = item.ai_score || 0;
                 const comment = item.ai_comment || '暂无点评';
-                const status = item.status || '未知状态';
+                const status = item.daily_trend_status || '未知状态';
                 
                 // 根据评分确定颜色
                 let scoreClass = 'text-muted';
