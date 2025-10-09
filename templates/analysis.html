@@ -593,6 +593,14 @@
         let html = '<div class="row">';
         
         data.forEach((item, index) => {
+            // 调试日志：检查daily_trend_status
+            console.log(`🔍 [${item.name}] AI分析结果调试:`, {
+                daily_trend_status: item.daily_trend_status,
+                type: typeof item.daily_trend_status,
+                isFalsy: !item.daily_trend_status,
+                finalValue: item.daily_trend_status || '未知状态'
+            });
+            
             // 处理数据缺失情况
             let scoreClass, scoreDisplay;
             if (item.ai_score === "数据缺失") {
