@@ -90,8 +90,18 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
         name = signal['name']
         # 调用LLM分析
         try:
-            daily_trend = daily_trends_map.get(code, {'status': '未知'})
+            daily_trend = daily_trends_map.get(code, {'status': '🟡 数据状态未知'})
             ai_score, ai_comment = await get_llm_score_and_analysis(signal, daily_trend)
+            
+            # 安全获取daily_trend_status，确保不为空
+            daily_trend_status = daily_trend.get('status', '')
+            logger.info(f"🔍 [{name}] 原始daily_trend_status: {repr(daily_trend_status)}")
+            
+            if not daily_trend_status or daily_trend_status.strip() == '':
+                daily_trend_status = '🟡 数据状态未知'
+                logger.warning(f"⚠️ [{name}] daily_trend_status为空，使用默认值: {daily_trend_status}")
+            
+            logger.info(f"🔍 [{name}] 最终daily_trend_status: {repr(daily_trend_status)}")
             
             # 如果AI评分为None（数据缺失），使用特殊状态
             if ai_score is None:
@@ -99,7 +109,7 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
                     **signal,
                     "ai_score": "数据缺失",
                     "ai_comment": ai_comment,
-                    "daily_trend_status": daily_trend.get('status', '未知'),
+                    "daily_trend_status": daily_trend_status,
                     "technical_indicators_summary": daily_trend.get('technical_indicators_summary', [])
                 })
             else:
@@ -107,7 +117,7 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
                     **signal,
                     "ai_score": ai_score,
                     "ai_comment": ai_comment,
-                    "daily_trend_status": daily_trend.get('status', '未知'),
+                    "daily_trend_status": daily_trend_status,
                     "technical_indicators_summary": daily_trend.get('technical_indicators_summary', [])
                 })
         except Exception as e:

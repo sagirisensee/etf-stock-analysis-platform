@@ -340,6 +340,37 @@
                     <strong>请求超时！</strong><br>
                     <small>分析耗时过长，请稍后在分析历史处查看结果</small><br>
                 `;
+                
+                // 504超时时，尝试从分析历史获取可能已完成的结果
+                try {
+                    const historyResponse = await fetch('/api/analysis-history?limit=1');
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.success && historyData.data.length > 0) {
+                            const latestAnalysis = historyData.data[0];
+                            const results = JSON.parse(latestAnalysis.results);
+                            
+                            // 如果最新的分析是刚刚完成的，显示结果
+                            const now = new Date();
+                            const analysisTime = new Date(latestAnalysis.created_at);
+                            const timeDiff = now - analysisTime;
+                            
+                            if (timeDiff < 300000) { // 5分钟内的分析结果
+                                currentAnalysisData = results;
+                                displayResults(results, type, latestAnalysis.created_at);
+                                
+                                // 显示超时提示，但同时也显示结果
+                                showAlert(`
+                                    <strong>请求超时，但分析已完成！</strong><br>
+                                    <small>以下是分析结果：</small>
+                                `, 'warning');
+                                return; // 提前返回，不显示错误消息
+                            }
+                        }
+                    }
+                } catch (historyError) {
+                    console.log('获取分析历史失败:', historyError);
+                }
             } else {
                 errorMessage = `
                     <strong>分析请求失败！</strong><br>
@@ -443,6 +474,37 @@
                     <small>数据获取时间过长，请稍后重试</small><br>
                     <small class="mt-2">这通常是由于数据源反爬虫限制导致的</small>
                 `;
+                
+                // 504超时时，尝试从分析历史获取可能已完成的结果
+                try {
+                    const historyResponse = await fetch('/api/analysis-history?limit=1');
+                    if (historyResponse.ok) {
+                        const historyData = await historyResponse.json();
+                        if (historyData.success && historyData.data.length > 0) {
+                            const latestAnalysis = historyData.data[0];
+                            const results = JSON.parse(latestAnalysis.results);
+                            
+                            // 如果最新的分析是刚刚完成的，显示结果
+                            const now = new Date();
+                            const analysisTime = new Date(latestAnalysis.created_at);
+                            const timeDiff = now - analysisTime;
+                            
+                            if (timeDiff < 300000) { // 5分钟内的分析结果
+                                currentAnalysisData = results;
+                                displayResults(results, type, latestAnalysis.created_at);
+                                
+                                // 显示超时提示，但同时也显示结果
+                                showAlert(`
+                                    <strong>请求超时，但分析已完成！</strong><br>
+                                    <small>以下是分析结果：</small>
+                                `, 'warning');
+                                return; // 提前返回，不显示错误消息
+                            }
+                        }
+                    }
+                } catch (historyError) {
+                    console.log('获取分析历史失败:', historyError);
+                }
             } else {
                 errorMessage = `
                     <strong>分析请求失败！</strong><br>
