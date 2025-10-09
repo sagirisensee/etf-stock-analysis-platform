@@ -740,14 +740,23 @@
     // 加载最近分析记录
     function loadRecentAnalysis() {
         fetch('/api/analysis-history?limit=1')
-            .then(response => response.json())
+            .then(response => {
+                console.log('分析历史API响应状态:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
-                if (data.success && data.data.length > 0) {
+                console.log('分析历史API数据:', data);
+                if (data.success && data.data && data.data.length > 0) {
                     const latestRecord = data.data[0];
+                    console.log('最新分析记录:', latestRecord);
                     displayRecentAnalysis(latestRecord);
                     // 记录时间戳，用于后续比较
                     lastAnalysisTimestamp = latestRecord.created_at;
                 } else {
+                    console.log('没有分析记录或API返回失败');
                     // 没有历史记录，显示默认提示
                     const recentAnalysis = document.getElementById('recentAnalysis');
                     recentAnalysis.innerHTML = `
@@ -761,21 +770,36 @@
             })
             .catch(error => {
                 console.error('加载最近分析失败:', error);
+                // 显示错误信息
+                const recentAnalysis = document.getElementById('recentAnalysis');
+                recentAnalysis.innerHTML = `
+                    <div class="text-center py-3">
+                        <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                        <p class="text-muted">加载分析历史失败: ${error.message}</p>
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadRecentAnalysis()">重试</button>
+                    </div>
+                `;
             });
     }
 
     // 显示最近分析记录
     function displayRecentAnalysis(record) {
         const recentAnalysis = document.getElementById('recentAnalysis');
-        const typeNames = {
-            'etf': 'ETF分析',
-            'stock': '股票分析',
-            'etf_debug': 'ETF数据指标',
-            'stock_debug': '股票数据指标'
-        };
         
         const typeName = getTypeDisplayName(record.analysis_type);
         const badgeClass = getTypeBadgeClass(record.analysis_type);
+        
+        // 计算标的数量（从results字段解析）
+        let count = 0;
+        try {
+            if (record.results) {
+                const results = typeof record.results === 'string' ? JSON.parse(record.results) : record.results;
+                count = results ? results.length : 0;
+            }
+        } catch (e) {
+            console.error('解析results字段失败:', e);
+            count = 0;
+        }
         
         const html = `
             <div class="d-flex justify-content-between align-items-center p-3 border rounded">
@@ -786,7 +810,7 @@
                     </div>
                     <small class="text-muted">
                         <i class="fas fa-clock me-1"></i>${formatDateTime(record.created_at)}
-                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${record.total_count} 个标的</span>
+                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${count} 个标的</span>
                     </small>
                 </div>
                 <button class="btn btn-sm btn-outline-primary" onclick="viewHistoryDetail(${record.id})">
