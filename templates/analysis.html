@@ -181,10 +181,21 @@
     let currentAnalysisData = null;
     let etfPools = [];
     let stockPools = [];
+    let recentAnalysisPollingTimer = null;
+    let lastAnalysisTimestamp = null;
 
     // 页面加载时获取池子数据
     document.addEventListener('DOMContentLoaded', function() {
         loadPoolData();
+        loadRecentAnalysis();
+        
+        // 启动定时器，每30秒检查一次是否有新的分析结果
+        startRecentAnalysisPolling();
+    });
+
+    // 页面卸载时清理定时器
+    window.addEventListener('beforeunload', function() {
+        stopRecentAnalysisPolling();
     });
 
     // 加载池子数据
@@ -339,38 +350,8 @@
                 errorMessage = `
                     <strong>请求超时！</strong><br>
                     <small>分析耗时过长，请稍后在分析历史处查看结果</small><br>
+                    <small class="mt-2">通常需要几分钟时间完成分析</small>
                 `;
-                
-                // 504超时时，尝试从分析历史获取可能已完成的结果
-                try {
-                    const historyResponse = await fetch('/api/analysis-history?limit=1');
-                    if (historyResponse.ok) {
-                        const historyData = await historyResponse.json();
-                        if (historyData.success && historyData.data.length > 0) {
-                            const latestAnalysis = historyData.data[0];
-                            const results = JSON.parse(latestAnalysis.results);
-                            
-                            // 如果最新的分析是刚刚完成的，显示结果
-                            const now = new Date();
-                            const analysisTime = new Date(latestAnalysis.created_at);
-                            const timeDiff = now - analysisTime;
-                            
-                            if (timeDiff < 300000) { // 5分钟内的分析结果
-                                currentAnalysisData = results;
-                                displayResults(results, type, latestAnalysis.created_at);
-                                
-                                // 显示超时提示，但同时也显示结果
-                                showAlert(`
-                                    <strong>请求超时，但分析已完成！</strong><br>
-                                    <small>以下是分析结果：</small>
-                                `, 'warning');
-                                return; // 提前返回，不显示错误消息
-                            }
-                        }
-                    }
-                } catch (historyError) {
-                    console.log('获取分析历史失败:', historyError);
-                }
             } else {
                 errorMessage = `
                     <strong>分析请求失败！</strong><br>
@@ -471,40 +452,9 @@
             } else if (error.message.includes('504') || error.message.includes('Gateway Timeout')) {
                 errorMessage = `
                     <strong>请求超时！</strong><br>
-                    <small>数据获取时间过长，请稍后重试</small><br>
-                    <small class="mt-2">这通常是由于数据源反爬虫限制导致的</small>
+                    <small>分析耗时过长，请稍后在分析历史处查看结果</small><br>
+                    <small class="mt-2">通常需要几分钟时间完成分析</small>
                 `;
-                
-                // 504超时时，尝试从分析历史获取可能已完成的结果
-                try {
-                    const historyResponse = await fetch('/api/analysis-history?limit=1');
-                    if (historyResponse.ok) {
-                        const historyData = await historyResponse.json();
-                        if (historyData.success && historyData.data.length > 0) {
-                            const latestAnalysis = historyData.data[0];
-                            const results = JSON.parse(latestAnalysis.results);
-                            
-                            // 如果最新的分析是刚刚完成的，显示结果
-                            const now = new Date();
-                            const analysisTime = new Date(latestAnalysis.created_at);
-                            const timeDiff = now - analysisTime;
-                            
-                            if (timeDiff < 300000) { // 5分钟内的分析结果
-                                currentAnalysisData = results;
-                                displayResults(results, type, latestAnalysis.created_at);
-                                
-                                // 显示超时提示，但同时也显示结果
-                                showAlert(`
-                                    <strong>请求超时，但分析已完成！</strong><br>
-                                    <small>以下是分析结果：</small>
-                                `, 'warning');
-                                return; // 提前返回，不显示错误消息
-                            }
-                        }
-                    }
-                } catch (historyError) {
-                    console.log('获取分析历史失败:', historyError);
-                }
             } else {
                 errorMessage = `
                     <strong>分析请求失败！</strong><br>
@@ -555,6 +505,11 @@
         
         // 更新最近分析
         updateRecentAnalysis(type, timestamp, data ? data.length : 0);
+        
+        // 刷新最近分析显示
+        setTimeout(() => {
+            loadRecentAnalysis();
+        }, 1000); // 延迟1秒，确保数据已保存到数据库
     }
 
     // 获取评分样式类
@@ -593,14 +548,6 @@
         let html = '<div class="row">';
         
         data.forEach((item, index) => {
-            // 调试日志：检查daily_trend_status
-            console.log(`🔍 [${item.name}] AI分析结果调试:`, {
-                daily_trend_status: item.daily_trend_status,
-                type: typeof item.daily_trend_status,
-                isFalsy: !item.daily_trend_status,
-                finalValue: item.daily_trend_status || '未知状态'
-            });
-            
             // 处理数据缺失情况
             let scoreClass, scoreDisplay;
             if (item.ai_score === "数据缺失") {
@@ -788,6 +735,137 @@
         `;
         
         recentAnalysis.innerHTML = html;
+    }
+
+    // 加载最近分析记录
+    function loadRecentAnalysis() {
+        fetch('/api/analysis-history?limit=1')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.length > 0) {
+                    const latestRecord = data.data[0];
+                    displayRecentAnalysis(latestRecord);
+                    // 记录时间戳，用于后续比较
+                    lastAnalysisTimestamp = latestRecord.created_at;
+                } else {
+                    // 没有历史记录，显示默认提示
+                    const recentAnalysis = document.getElementById('recentAnalysis');
+                    recentAnalysis.innerHTML = `
+                        <div class="text-center py-3">
+                            <i class="fas fa-clock fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">暂无分析记录，开始您的第一次分析吧！</p>
+                        </div>
+                    `;
+                    lastAnalysisTimestamp = null;
+                }
+            })
+            .catch(error => {
+                console.error('加载最近分析失败:', error);
+            });
+    }
+
+    // 显示最近分析记录
+    function displayRecentAnalysis(record) {
+        const recentAnalysis = document.getElementById('recentAnalysis');
+        const typeNames = {
+            'etf': 'ETF分析',
+            'stock': '股票分析',
+            'etf_debug': 'ETF数据指标',
+            'stock_debug': '股票数据指标'
+        };
+        
+        const typeName = getTypeDisplayName(record.analysis_type);
+        const badgeClass = getTypeBadgeClass(record.analysis_type);
+        
+        const html = `
+            <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                <div>
+                    <div class="d-flex align-items-center mb-1">
+                        <h6 class="mb-0 me-2">${typeName}</h6>
+                        <span class="badge ${badgeClass}">${typeName}</span>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>${formatDateTime(record.created_at)}
+                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${record.total_count} 个标的</span>
+                    </small>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewHistoryDetail(${record.id})">
+                    <i class="fas fa-eye me-1"></i>查看
+                </button>
+            </div>
+        `;
+        
+        recentAnalysis.innerHTML = html;
+    }
+
+    // 查看历史详情（复用历史页面的函数）
+    function viewHistoryDetail(recordId) {
+        // 跳转到历史页面并自动打开详情
+        window.location.href = `/history?id=${recordId}`;
+    }
+
+    // 启动最近分析轮询
+    function startRecentAnalysisPolling() {
+        // 如果已经有定时器在运行，先清除
+        if (recentAnalysisPollingTimer) {
+            clearInterval(recentAnalysisPollingTimer);
+        }
+        
+        // 每30秒检查一次是否有新的分析结果
+        recentAnalysisPollingTimer = setInterval(() => {
+            checkForNewAnalysis();
+        }, 30000); // 30秒
+    }
+
+    // 停止最近分析轮询
+    function stopRecentAnalysisPolling() {
+        if (recentAnalysisPollingTimer) {
+            clearInterval(recentAnalysisPollingTimer);
+            recentAnalysisPollingTimer = null;
+        }
+    }
+
+    // 检查是否有新的分析结果
+    function checkForNewAnalysis() {
+        fetch('/api/analysis-history?limit=1')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.length > 0) {
+                    const latestRecord = data.data[0];
+                    const latestTimestamp = latestRecord.created_at;
+                    
+                    // 如果有新的分析结果（时间戳不同），更新显示
+                    if (lastAnalysisTimestamp !== latestTimestamp) {
+                        console.log('发现新的分析结果，正在更新显示...');
+                        displayRecentAnalysis(latestRecord);
+                        lastAnalysisTimestamp = latestTimestamp;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('检查新分析结果失败:', error);
+            });
+    }
+
+    // 获取类型显示名称
+    function getTypeDisplayName(analysisType) {
+        const typeNames = {
+            'etf': 'ETF分析',
+            'stock': '股票分析',
+            'etf_debug': 'ETF数据指标',
+            'stock_debug': '股票数据指标'
+        };
+        return typeNames[analysisType] || analysisType;
+    }
+
+    // 获取类型徽章样式
+    function getTypeBadgeClass(analysisType) {
+        if (analysisType.includes('etf')) {
+            return 'bg-primary';
+        } else if (analysisType.includes('stock')) {
+            return 'bg-success';
+        }
+        return 'bg-secondary';
     }
 
     // 显示当前结果
@@ -1003,11 +1081,6 @@
         }
     }
 
-    // 页面加载时检查是否有最近的分析
-    document.addEventListener('DOMContentLoaded', function() {
-        // 这里可以加载最近的分析历史
-        // loadRecentAnalysis();
-    });
 </script>
 
 <style>

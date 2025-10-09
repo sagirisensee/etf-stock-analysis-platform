@@ -95,13 +95,8 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
             
             # 安全获取daily_trend_status，确保不为空
             daily_trend_status = daily_trend.get('status', '')
-            logger.info(f"🔍 [{name}] 原始daily_trend_status: {repr(daily_trend_status)}")
-            
             if not daily_trend_status or daily_trend_status.strip() == '':
                 daily_trend_status = '🟡 数据状态未知'
-                logger.warning(f"⚠️ [{name}] daily_trend_status为空，使用默认值: {daily_trend_status}")
-            
-            logger.info(f"🔍 [{name}] 最终daily_trend_status: {repr(daily_trend_status)}")
             
             # 如果AI评分为None（数据缺失），使用特殊状态
             if ai_score is None:
