@@ -836,6 +836,42 @@ def history_page():
     history = get_user_analysis_history(user_id, 50)
     return render_template('history.html', history=history)
 
+@app.route('/api/analysis-history')
+@login_required
+def get_analysis_history():
+    """获取分析历史列表"""
+    try:
+        user_id = session['user_id']
+        limit = request.args.get('limit', 50, type=int)
+        
+        history = get_user_analysis_history(user_id, limit)
+        
+        # 格式化数据
+        formatted_history = []
+        for record in history:
+            try:
+                results = json.loads(record['results']) if record['results'] else []
+                formatted_record = {
+                    'id': record['id'],
+                    'analysis_type': record['analysis_type'],
+                    'created_at': record['created_at'],
+                    'total_count': len(results),
+                    'results': results
+                }
+                formatted_history.append(formatted_record)
+            except json.JSONDecodeError:
+                logger.warning(f"解析历史记录 {record['id']} 的results字段失败")
+                continue
+        
+        return jsonify({
+            "success": True,
+            "data": formatted_history
+        })
+        
+    except Exception as e:
+        logger.error(f"获取分析历史失败: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"获取历史失败: {str(e)}"}), 500
+
 @app.route('/api/history/<int:record_id>')
 @login_required
 def get_history_detail(record_id):
