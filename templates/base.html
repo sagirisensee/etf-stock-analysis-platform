@@ -407,9 +407,10 @@
                     if (dateString.includes('T')) {
                         date = new Date(dateString);
                     } 
-                    // 如果是 YYYY-MM-DD HH:MM:SS 格式，直接解析（会被当作本地时间）
+                    // 如果是 YYYY-MM-DD HH:MM:SS 格式，假设这是UTC时间，需要明确指定
                     else if (dateString.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
-                        date = new Date(dateString);
+                        // 明确指定这是UTC时间，然后转换为本地时间
+                        date = new Date(dateString + ' UTC');
                     }
                     // 其他格式尝试直接解析
                     else {
@@ -432,11 +433,9 @@
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit',
-                    hour12: false,
-                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // 使用用户系统时区
+                    hour12: false
                 });
             } catch (error) {
-                console.warn('时间格式化失败:', error, '原始值:', dateString);
                 return dateString;
             }
         }
