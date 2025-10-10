@@ -897,7 +897,7 @@
                                         <strong>${item.name}</strong> (${item.code})
                                     </div>
                                     <div class="text-end">
-                                        <span class="badge bg-secondary me-2 ${(item.change || 0) > 0 ? 'text-danger' : ((item.change || 0) < 0 ? 'text-success' : 'text-muted')}">
+                                        <span class="badge me-2 ${(item.change || 0) > 0 ? 'bg-danger text-white' : ((item.change || 0) < 0 ? 'bg-success text-white' : 'bg-warning text-dark')}">
                                             ${(item.change || 0) !== null && (item.change || 0) !== undefined ? 
                                                 ((item.change || 0) > 0 ? '+' : '') + (item.change || 0).toFixed(2) + '%' : 
                                                 'N/A'
