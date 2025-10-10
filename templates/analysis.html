@@ -186,6 +186,12 @@
 
     // 页面加载时获取池子数据
     document.addEventListener('DOMContentLoaded', function() {
+        // 显示当前本地时间
+        displayCurrentLocalTime();
+        
+        // 每秒更新时间显示
+        setInterval(displayCurrentLocalTime, 1000);
+        
         loadPoolData();
         loadRecentAnalysis();
         
@@ -991,6 +997,38 @@
         recentAnalysisPollingTimer = setInterval(() => {
             checkForNewAnalysis();
         }, 30000); // 30秒
+    }
+    
+    // 显示当前本地时间
+    function displayCurrentLocalTime() {
+        const now = new Date();
+        const localTimeString = now.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        // 在页面顶部显示当前本地时间
+        let timeDisplay = document.getElementById('currentLocalTime');
+        if (!timeDisplay) {
+            // 创建时间显示元素
+            timeDisplay = document.createElement('div');
+            timeDisplay.id = 'currentLocalTime';
+            timeDisplay.className = 'text-muted small text-end mb-2';
+            timeDisplay.innerHTML = `<i class="fas fa-clock me-1"></i>当前本地时间: ${localTimeString}`;
+            
+            // 插入到页面顶部
+            const container = document.querySelector('.container-fluid');
+            if (container) {
+                container.insertBefore(timeDisplay, container.firstChild);
+            }
+        } else {
+            timeDisplay.innerHTML = `<i class="fas fa-clock me-1"></i>当前本地时间: ${localTimeString}`;
+        }
     }
 
     // 停止最近分析轮询
