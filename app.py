@@ -203,7 +203,7 @@ def migrate_database():
                         name TEXT NOT NULL,
                         type TEXT NOT NULL CHECK (type IN ('etf', 'stock')),
                         code TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                     )
                 ''')
@@ -214,7 +214,7 @@ def migrate_database():
                         user_id INTEGER NOT NULL,
                         analysis_type TEXT NOT NULL,
                         results TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                     )
                 ''')
@@ -226,8 +226,8 @@ def migrate_database():
                         user_id INTEGER NOT NULL,
                         config_key TEXT NOT NULL,
                         config_value TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
-                        updated_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
                         UNIQUE(user_id, config_key)
                     )
@@ -277,9 +277,6 @@ def init_db():
     migrate_database()
     
     with get_db() as conn:
-        # 设置SQLite使用本地时间
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("SELECT datetime('now', 'localtime')")  # 确保本地时间函数可用
         conn.execute('''
             CREATE TABLE IF NOT EXISTS config (
                 id INTEGER PRIMARY KEY,
@@ -821,7 +818,7 @@ def api_analyze(analysis_type):
         return jsonify({
             'success': True,
             'data': results,
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
