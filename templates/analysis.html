@@ -741,22 +741,18 @@
     function loadRecentAnalysis() {
         fetch('/api/analysis-history?limit=1')
             .then(response => {
-                console.log('分析历史API响应状态:', response.status);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 return response.json();
             })
             .then(data => {
-                console.log('分析历史API数据:', data);
                 if (data.success && data.data && data.data.length > 0) {
                     const latestRecord = data.data[0];
-                    console.log('最新分析记录:', latestRecord);
                     displayRecentAnalysis(latestRecord);
                     // 记录时间戳，用于后续比较
                     lastAnalysisTimestamp = latestRecord.created_at;
                 } else {
-                    console.log('没有分析记录或API返回失败');
                     // 没有历史记录，显示默认提示
                     const recentAnalysis = document.getElementById('recentAnalysis');
                     recentAnalysis.innerHTML = `
@@ -797,7 +793,6 @@
                 count = results ? results.length : 0;
             }
         } catch (e) {
-            console.error('解析results字段失败:', e);
             count = 0;
         }
         
@@ -813,7 +808,7 @@
                         <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${count} 个标的</span>
                     </small>
                 </div>
-                <button class="btn btn-sm btn-outline-primary" onclick="viewHistoryDetail(${record.id})">
+                <button class="btn btn-sm btn-outline-primary" onclick="showRecentAnalysisDetail(${record.id})">
                     <i class="fas fa-eye me-1"></i>查看
                 </button>
             </div>
@@ -822,10 +817,150 @@
         recentAnalysis.innerHTML = html;
     }
 
-    // 查看历史详情（复用历史页面的函数）
-    function viewHistoryDetail(recordId) {
-        // 跳转到历史页面并自动打开详情
-        window.location.href = `/history?id=${recordId}`;
+    // 显示最近分析详情
+    function showRecentAnalysisDetail(recordId) {
+        // 获取分析详情并显示在模态框中
+        fetch(`/api/history/${recordId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    displayHistoryDetail(data.data);
+                } else {
+                    alert('获取分析详情失败');
+                }
+            })
+            .catch(error => {
+                console.error('获取分析详情失败:', error);
+                alert('获取分析详情失败');
+            });
+    }
+
+    // 显示历史详情（复用历史页面的逻辑）
+    function displayHistoryDetail(record) {
+        // 解析结果数据
+        let results = [];
+        try {
+            if (record.results) {
+                results = typeof record.results === 'string' ? JSON.parse(record.results) : record.results;
+            }
+        } catch (e) {
+            console.error('解析results字段失败:', e);
+        }
+
+        // 构建详情HTML
+        let detailHtml = `
+            <div class="modal fade" id="historyDetailModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-chart-line me-2"></i>分析详情
+                                <span class="badge bg-primary ms-2">${record.analysis_type}</span>
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <strong>分析时间:</strong> ${formatDateTime(record.created_at)}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>分析标的数量:</strong> ${results.length} 个
+                                </div>
+                            </div>
+        `;
+
+        // 添加每个标的的详细信息
+        if (results && results.length > 0) {
+            detailHtml += '<div class="accordion" id="analysisAccordion">';
+            
+            results.forEach((item, index) => {
+                const dailyTrendStatus = item.daily_trend_status || '未知状态';
+                const aiScore = item.ai_score || 'N/A';
+                const aiComment = item.ai_comment || '暂无AI分析';
+                
+                detailHtml += `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#collapse${index}">
+                                <div class="d-flex justify-content-between w-100 me-3">
+                                    <div>
+                                        <strong>${item.name}</strong> (${item.code})
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-primary me-2">AI评分: ${aiScore}</span>
+                                        <span class="badge ${getTrendBadgeClass(dailyTrendStatus)}">${dailyTrendStatus}</span>
+                                    </div>
+                                </div>
+                            </button>
+                        </h2>
+                        <div id="collapse${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" 
+                             data-bs-parent="#analysisAccordion">
+                            <div class="accordion-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>技术指标分析</h6>
+                                        <div class="technical-analysis">
+                                            ${item.technical_analysis || '暂无技术分析'}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>AI投资建议</h6>
+                                        <div class="ai-comment">
+                                            ${aiComment}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            detailHtml += '</div>';
+        }
+
+        detailHtml += `
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('historyDetailModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // 添加新的模态框到页面
+        document.body.insertAdjacentHTML('beforeend', detailHtml);
+
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+        modal.show();
+
+        // 模态框关闭时移除DOM元素
+        document.getElementById('historyDetailModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    }
+
+    // 根据趋势状态获取徽章样式
+    function getTrendBadgeClass(status) {
+        if (status.includes('强势上升') || status.includes('上升')) {
+            return 'bg-success';
+        } else if (status.includes('弱势下降') || status.includes('下降')) {
+            return 'bg-danger';
+        } else if (status.includes('震荡')) {
+            return 'bg-warning';
+        } else {
+            return 'bg-secondary';
+        }
     }
 
     // 启动最近分析轮询
@@ -860,7 +995,6 @@
                     
                     // 如果有新的分析结果（时间戳不同），更新显示
                     if (lastAnalysisTimestamp !== latestTimestamp) {
-                        console.log('发现新的分析结果，正在更新显示...');
                         displayRecentAnalysis(latestRecord);
                         lastAnalysisTimestamp = latestTimestamp;
                     }
