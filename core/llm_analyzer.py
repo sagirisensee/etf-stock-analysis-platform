@@ -119,73 +119,96 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
         "**特别注意：每个投资标的的技术指标表现都不同，必须根据其具体的技术面表现给出不同的评分，不能给出相同的分数。**" # 再次强调
     )
 
-    try:
-        # 根据API提供商构建不同的请求参数
-        request_params = {
-            "model": os.getenv("LLM_MODEL_NAME", "sonar-pro"),
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(combined_data, ensure_ascii=False, indent=2)}
-            ]
-        }
-        
-        # 根据API提供商添加不同的参数
-        if api_provider == "perplexity":
-            # Perplexity AI 不使用response_format
-            request_params.update({
-                "max_tokens": 1000,
-                "temperature": 0.7,
-                "top_p": 0.9
-            })
-            logger.info("使用Perplexity AI格式请求（无response_format）")
-        else:
-            # OpenAI 使用json_object格式
-            request_params.update({
-                "response_format": {
-                    "type": "json_object"
-                }
-            })
-            logger.info("使用OpenAI格式请求（json_object）")
-        
-        response = await asyncio.to_thread(
-            current_client.chat.completions.create,
-            **request_params
-        )
-        
-        raw_content = response.choices[0].message.content
-        if not raw_content:
-            logger.warning(f"LLM为空内容返回: {etf_data.get('name')}")
-            return 50, "模型未提供有效分析。"
-
-        # 根据API提供商进行不同的解析
-        if api_provider == "perplexity":
-            # Perplexity AI 特殊解析：从文本中提取JSON
-            score, comment = _parse_perplexity_response(raw_content)
-        else:
-            # OpenAI 兼容格式解析
-            score, comment = _parse_openai_response(raw_content)
-        
-        # 直接使用LLM给出的分数，不进行算法调整
-        if score is not None and isinstance(score, (int, float)):
-            # 检查数据缺失情况
-            technical_indicators = daily_trend_data.get('technical_indicators_summary', [])
-            data_missing_keywords = ['数据缺失', '数据不足', '无法分析', '数据异常', '数据源暂时不可用']
-            has_data_missing = any(any(keyword in indicator.lower() for keyword in data_missing_keywords) 
-                                 for indicator in technical_indicators)
+    # 重试机制配置
+    max_retries = 3
+    retry_delay = 2  # 秒
+    
+    for attempt in range(max_retries):
+        try:
+            # 根据API提供商构建不同的请求参数
+            request_params = {
+                "model": os.getenv("LLM_MODEL_NAME", "sonar-pro"),
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(combined_data, ensure_ascii=False, indent=2)}
+                ]
+            }
             
-            # 如果数据缺失，返回特殊状态
-            if has_data_missing:
-                return None, "数据缺失，无法进行评分分析"
+            # 根据API提供商添加不同的参数
+            if api_provider == "perplexity":
+                # Perplexity AI 不使用response_format
+                request_params.update({
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                })
+                logger.info("使用Perplexity AI格式请求（无response_format）")
+            else:
+                # OpenAI 使用json_object格式
+                request_params.update({
+                    "response_format": {
+                        "type": "json_object"
+                    }
+                })
+                logger.info("使用OpenAI格式请求（json_object）")
             
-            # 限制分数范围在0-99之间
-            score = max(0, min(99, score))
-            score = round(score, 1)  # 保留一位小数
+            response = await asyncio.to_thread(
+                current_client.chat.completions.create,
+                **request_params
+            )
         
-        return score, comment
+            raw_content = response.choices[0].message.content
+            if not raw_content:
+                logger.warning(f"LLM为空内容返回: {etf_data.get('name')}")
+                return 50, "模型未提供有效分析。"
 
-    except Exception as e:
-        logger.error(f"调用或解析LLM响应时出错: {e}", exc_info=True)
-        return 50, f"LLM分析服务异常: {e}" # 返回50分和错误信息，确保程序不崩溃
+            # 根据API提供商进行不同的解析
+            if api_provider == "perplexity":
+                # Perplexity AI 特殊解析：从文本中提取JSON
+                score, comment = _parse_perplexity_response(raw_content)
+            else:
+                # OpenAI 兼容格式解析
+                score, comment = _parse_openai_response(raw_content)
+            
+            # 直接使用LLM给出的分数，不进行算法调整
+            if score is not None and isinstance(score, (int, float)):
+                # 检查数据缺失情况
+                technical_indicators = daily_trend_data.get('technical_indicators_summary', [])
+                data_missing_keywords = ['数据缺失', '数据不足', '无法分析', '数据异常', '数据源暂时不可用']
+                has_data_missing = any(any(keyword in indicator.lower() for keyword in data_missing_keywords) 
+                                     for indicator in technical_indicators)
+                
+                # 如果数据缺失，返回特殊状态
+                if has_data_missing:
+                    return None, "数据缺失，无法进行评分分析"
+                
+                # 限制分数范围在0-99之间
+                score = max(0, min(99, score))
+                score = round(score, 1)  # 保留一位小数
+            
+            return score, comment
+            
+        except Exception as e:
+            error_str = str(e)
+            logger.warning(f"LLM请求失败 (尝试 {attempt + 1}/{max_retries}): {error_str}")
+            
+            # 检查是否是服务繁忙错误
+            if "503" in error_str or "too busy" in error_str.lower() or "service unavailable" in error_str.lower():
+                if attempt < max_retries - 1:  # 不是最后一次尝试
+                    logger.info(f"检测到服务繁忙，等待 {retry_delay} 秒后重试...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 1.5  # 指数退避
+                    continue
+                else:
+                    # 最后一次尝试也失败了
+                    return 50, "AI分析服务繁忙，请稍后再试。当前返回默认评分。"
+            else:
+                # 其他类型的错误，不重试
+                logger.error(f"LLM调用失败，错误类型: {error_str}", exc_info=True)
+                return 50, f"AI分析服务异常: {error_str}"
+    
+    # 如果所有重试都失败了
+    return 50, "AI分析服务暂时不可用，请稍后再试。"
 
 def _parse_perplexity_response(raw_content):
     """解析Perplexity AI的响应"""

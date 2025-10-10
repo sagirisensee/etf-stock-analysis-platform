@@ -590,7 +590,15 @@
                             
                             <div class="mb-3">
                                 <small class="text-muted">AI点评</small>
-                                <p class="small">${item.ai_comment || '暂无点评'}</p>
+                                <p class="small">
+                                    ${item.ai_comment ? 
+                                        (item.ai_comment.includes('LLM分析服务异常') || item.ai_comment.includes('AI分析服务') ?
+                                            `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>${item.ai_comment}</span>` :
+                                            item.ai_comment
+                                        ) : 
+                                        '暂无点评'
+                                    }
+                                </p>
                             </div>
                             
                             <div class="mb-3">
@@ -889,6 +897,12 @@
                                         <strong>${item.name}</strong> (${item.code})
                                     </div>
                                     <div class="text-end">
+                                        <span class="badge bg-secondary me-2 ${(item.change || 0) > 0 ? 'text-danger' : ((item.change || 0) < 0 ? 'text-success' : 'text-muted')}">
+                                            ${(item.change || 0) !== null && (item.change || 0) !== undefined ? 
+                                                ((item.change || 0) > 0 ? '+' : '') + (item.change || 0).toFixed(2) + '%' : 
+                                                'N/A'
+                                            }
+                                        </span>
                                         <span class="badge bg-primary me-2">AI评分: ${aiScore}</span>
                                         <span class="badge ${getTrendBadgeClass(dailyTrendStatus)}">${dailyTrendStatus}</span>
                                     </div>
@@ -908,7 +922,10 @@
                                     <div class="col-md-6">
                                         <h6>AI投资建议</h6>
                                         <div class="ai-comment">
-                                            ${aiComment}
+                                            ${aiComment.includes('LLM分析服务异常') || aiComment.includes('AI分析服务') ?
+                                                `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>${aiComment}</span>` :
+                                                aiComment
+                                            }
                                         </div>
                                     </div>
                                 </div>
