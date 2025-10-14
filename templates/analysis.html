@@ -202,6 +202,26 @@
     async function loadPoolData() {
         try {
             const response = await fetch('/api/pools');
+            
+            // 检查响应状态
+            if (response.status === 401 || response.status === 403) {
+                // 未登录状态，显示默认池子数据
+                etfPools = [];
+                stockPools = [];
+                renderPoolCards();
+                return;
+            }
+            
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                // 如果返回的不是JSON（可能是HTML登录页面），说明未登录
+                etfPools = [];
+                stockPools = [];
+                renderPoolCards();
+                return;
+            }
+            
             const data = await response.json();
             
             if (data.success) {
@@ -212,7 +232,14 @@
                 showAlert('加载池子数据失败: ' + data.error, 'danger');
             }
         } catch (error) {
-            showAlert('加载池子数据失败: ' + error.message, 'danger');
+            // 如果是JSON解析错误，可能是未登录，不显示错误
+            if (error.message.includes('Unexpected token')) {
+                etfPools = [];
+                stockPools = [];
+                renderPoolCards();
+            } else {
+                showAlert('加载池子数据失败: ' + error.message, 'danger');
+            }
         }
     }
 
