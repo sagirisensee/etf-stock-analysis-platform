@@ -535,11 +535,45 @@
                 return;
             }
             
+            // PC端不显示安装提示
+            if (window.innerWidth > 768 || !('ontouchstart' in window)) {
+                console.log('PC端或非触摸设备，不显示安装提示');
+                return;
+            }
+            
+            // 检查是否已经安装过（通过localStorage记录）
+            if (localStorage.getItem('pwa-install-dismissed') === 'true') {
+                console.log('用户已拒绝安装，不显示安装提示');
+                return;
+            }
+            
+            // 检查iOS设备
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+            
             if (installButton) return;
             
             installButton = document.createElement('div');
             installButton.className = 'position-fixed';
             installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 9999;';
+            // 根据设备类型显示不同的安装提示
+            let installText = '获得更好的使用体验，支持离线使用';
+            let installButtonText = '安装';
+            let installIcon = 'fas fa-download';
+            
+            if (isIOS) {
+                if (isSafari) {
+                    installText = '点击分享按钮 → 添加到主屏幕';
+                    installButtonText = '查看安装步骤';
+                    installIcon = 'fas fa-share';
+                } else {
+                    // iOS 16.4+ 支持其他浏览器安装PWA
+                    installText = '点击分享按钮 → 添加到主屏幕（iOS 16.4+）';
+                    installButtonText = '查看安装步骤';
+                    installIcon = 'fas fa-share';
+                }
+            }
+            
             installButton.innerHTML = `
                 <div class="card shadow-lg border-0 install-card" style="max-width: 280px;">
                     <div class="card-body p-3">
@@ -547,10 +581,10 @@
                             <img src="/static/icons/icon-32x32.png" class="me-2" style="width: 24px; height: 24px;">
                             <h6 class="mb-0">安装应用</h6>
                         </div>
-                        <p class="small text-muted mb-3">获得更好的使用体验，支持离线使用</p>
+                        <p class="small text-muted mb-3">${installText}</p>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-primary btn-sm flex-fill" onclick="installPWA()">
-                                <i class="fas fa-download me-1"></i>安装
+                            <button class="btn btn-primary btn-sm flex-fill" onclick="${isIOS ? 'showIOSInstallSteps()' : 'installPWA()'}">
+                                <i class="${installIcon} me-1"></i>${installButtonText}
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" onclick="dismissInstall()">
                                 <i class="fas fa-times"></i>
@@ -574,12 +608,16 @@
                 deferredPrompt.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
                         console.log('用户接受了PWA安装');
+                        // 记录安装成功，避免重复提示
+                        localStorage.setItem('pwa-install-dismissed', 'true');
                         // 安装成功后刷新页面
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);
                     } else {
                         console.log('用户拒绝了PWA安装');
+                        // 记录拒绝，避免重复提示
+                        localStorage.setItem('pwa-install-dismissed', 'true');
                     }
                     deferredPrompt = null;
                 });
@@ -588,7 +626,85 @@
             }
         }
         
+        function showIOSInstallSteps() {
+            // 显示iOS安装步骤
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-mobile-alt me-2"></i>iOS安装步骤
+                            </h5>
+                            <button type="button" class="btn-close" onclick="closeIOSModal()"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">1</span>
+                                        <div>
+                                            <h6 class="mb-1">点击分享按钮</h6>
+                                            <small class="text-muted">在浏览器底部找到分享图标</small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">2</span>
+                                        <div>
+                                            <h6 class="mb-1">选择"添加到主屏幕"</h6>
+                                            <small class="text-muted">在分享菜单中找到此选项</small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">3</span>
+                                        <div>
+                                            <h6 class="mb-1">确认安装</h6>
+                                            <small class="text-muted">点击"添加"完成安装</small>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-info mt-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>提示：</strong>安装后应用会出现在主屏幕上，点击即可使用！
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" onclick="closeIOSModal()">
+                                <i class="fas fa-check me-1"></i>我知道了
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // 显示模态框
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+            
+            // 关闭时清理
+            modal.addEventListener('hidden.bs.modal', () => {
+                document.body.removeChild(modal);
+            });
+        }
+        
+        function closeIOSModal() {
+            const modal = document.querySelector('.modal');
+            if (modal) {
+                const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                if (bootstrapModal) {
+                    bootstrapModal.hide();
+                }
+            }
+        }
+        
         function dismissInstall() {
+            // 记录用户拒绝安装，避免重复提示
+            localStorage.setItem('pwa-install-dismissed', 'true');
+            
             if (installButton && installButton.parentNode) {
                 installButton.style.opacity = '0';
                 installButton.style.transition = 'opacity 0.3s ease-out';

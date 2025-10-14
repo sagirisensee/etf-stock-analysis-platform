@@ -755,12 +755,42 @@
     function loadRecentAnalysis() {
         fetch('/api/analysis-history?limit=1')
             .then(response => {
+                // 检查响应状态
+                if (response.status === 401 || response.status === 403) {
+                    // 未登录状态，不显示最近分析
+                    const recentAnalysis = document.getElementById('recentAnalysis');
+                    recentAnalysis.innerHTML = `
+                        <div class="text-center py-3">
+                            <i class="fas fa-user-lock fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">请先登录查看分析历史</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+                
+                // 检查响应内容类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // 如果返回的不是JSON（可能是HTML登录页面），说明未登录
+                    const recentAnalysis = document.getElementById('recentAnalysis');
+                    recentAnalysis.innerHTML = `
+                        <div class="text-center py-3">
+                            <i class="fas fa-user-lock fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">请先登录查看分析历史</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
                 return response.json();
             })
             .then(data => {
+                if (!data) return; // 如果上面已经处理了未登录情况
+                
                 if (data.success && data.data && data.data.length > 0) {
                     const latestRecord = data.data[0];
                     displayRecentAnalysis(latestRecord);
@@ -1017,8 +1047,27 @@
     // 检查是否有新的分析结果
     function checkForNewAnalysis() {
         fetch('/api/analysis-history?limit=1')
-            .then(response => response.json())
+            .then(response => {
+                // 检查响应状态
+                if (response.status === 401 || response.status === 403) {
+                    // 未登录状态，停止轮询
+                    stopRecentAnalysisPolling();
+                    return;
+                }
+                
+                // 检查响应内容类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // 如果返回的不是JSON，说明未登录，停止轮询
+                    stopRecentAnalysisPolling();
+                    return;
+                }
+                
+                return response.json();
+            })
             .then(data => {
+                if (!data) return; // 如果上面已经处理了未登录情况
+                
                 if (data.success && data.data.length > 0) {
                     const latestRecord = data.data[0];
                     const latestTimestamp = latestRecord.created_at;
@@ -1032,6 +1081,10 @@
             })
             .catch(error => {
                 console.error('检查新分析结果失败:', error);
+                // 如果是网络错误或解析错误，可能是未登录，停止轮询
+                if (error.message.includes('Unexpected token') || error.message.includes('401') || error.message.includes('403')) {
+                    stopRecentAnalysisPolling();
+                }
             });
     }
 
