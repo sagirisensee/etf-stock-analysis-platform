@@ -52,32 +52,31 @@
                              data-date="{{ record.created_at }}">
                             <div class="card-body">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2">
-                                        <div class="text-center">
-                                            {% if record.analysis_type == 'etf' %}
-                                                <i class="fas fa-chart-pie fa-2x text-primary mb-2"></i>
-                                                <div class="badge bg-primary">ETF分析</div>
-                                            {% elif record.analysis_type == 'stock' %}
-                                                <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
-                                                <div class="badge bg-success">股票分析</div>
-                                            {% elif record.analysis_type == 'etf_debug' %}
-                                                <i class="fas fa-chart-bar fa-2x text-warning mb-2"></i>
-                                                <div class="badge bg-warning">ETF数据指标</div>
-                                            {% elif record.analysis_type == 'stock_debug' %}
-                                                <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
-                                                <div class="badge bg-info">股票数据指标</div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    
                                     <div class="col-md-8">
-                                        <h6 class="mb-1">
-                                            {% if record.analysis_type == 'etf' %}ETF AI分析报告
-                                            {% elif record.analysis_type == 'stock' %}股票AI分析报告
-                                            {% elif record.analysis_type == 'etf_debug' %}ETF数据指标分析报告
-                                            {% elif record.analysis_type == 'stock_debug' %}股票数据指标分析报告
-                                            {% endif %}
-                                        </h6>
+                                        <div class="d-flex align-items-start justify-content-between mb-2">
+                                            <h6 class="mb-0">
+                                                {% if record.analysis_type == 'etf' %}ETF AI分析报告
+                                                {% elif record.analysis_type == 'stock' %}股票AI分析报告
+                                                {% elif record.analysis_type == 'etf_debug' %}ETF数据指标分析报告
+                                                {% elif record.analysis_type == 'stock_debug' %}股票数据指标分析报告
+                                                {% endif %}
+                                            </h6>
+                                            <div class="text-end">
+                                                {% if record.analysis_type == 'etf' %}
+                                                    <i class="fas fa-chart-pie text-primary me-1"></i>
+                                                    <span class="badge bg-primary">ETF分析</span>
+                                                {% elif record.analysis_type == 'stock' %}
+                                                    <i class="fas fa-chart-line text-success me-1"></i>
+                                                    <span class="badge bg-success">股票分析</span>
+                                                {% elif record.analysis_type == 'etf_debug' %}
+                                                    <i class="fas fa-chart-bar text-warning me-1"></i>
+                                                    <span class="badge bg-warning">ETF数据指标</span>
+                                                {% elif record.analysis_type == 'stock_debug' %}
+                                                    <i class="fas fa-chart-bar text-info me-1"></i>
+                                                    <span class="badge bg-info">股票数据指标</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                         <p class="text-muted mb-1">
                                             <i class="fas fa-clock me-1"></i>
                                             <span class="time-display" data-timestamp="{{ record.created_at }}">加载中...</span>
@@ -98,7 +97,7 @@
                                         </p>
                                     </div>
                                     
-                                    <div class="col-md-2 text-end">
+                                    <div class="col-md-4 text-end">
                                         <button class="btn btn-sm btn-outline-primary me-1" 
                                                 onclick="viewHistory({{ record.id }})">
                                             <i class="fas fa-eye"></i>
