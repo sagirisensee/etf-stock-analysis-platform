@@ -8,6 +8,8 @@
   "theme_color": "#007bff",
   "orientation": "portrait-primary",
   "scope": "/",
+  "prefer_related_applications": false,
+  "related_applications": [],
   "lang": "zh-CN",
   "icons": [
     {

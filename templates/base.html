@@ -9,9 +9,11 @@
     <meta name="description" content="智能投资分析工具，提供ETF和股票量化分析">
     <meta name="theme-color" content="#007bff">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="AI投资分析">
     <meta name="msapplication-TileColor" content="#007bff">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/static/manifest.json">
@@ -33,6 +35,56 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
+        /* PWA 优化样式 */
+        @media (display-mode: standalone) {
+            body {
+                /* 隐藏浏览器UI时的额外样式 */
+                -webkit-user-select: none;
+                -webkit-touch-callout: none;
+            }
+            
+            /* 隐藏可能的滚动条 */
+            ::-webkit-scrollbar {
+                display: none;
+            }
+            
+            /* 优化触摸体验 */
+            button, .btn {
+                -webkit-tap-highlight-color: transparent;
+            }
+        }
+        
+        /* 全屏模式优化 */
+        @media (display-mode: fullscreen) {
+            .navbar {
+                padding-top: env(safe-area-inset-top);
+            }
+        }
+        
+        /* 安装提示动画 */
+        .install-card {
+            animation: slideInUp 0.3s ease-out;
+        }
+        
+        @keyframes slideInUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        /* 优化移动端体验 */
+        @media (max-width: 768px) {
+            .install-card {
+                max-width: 90vw !important;
+                margin: 0 5vw;
+            }
+        }
+        
         :root {
             --primary-color: #2c3e50;
             --secondary-color: #3498db;
@@ -469,33 +521,51 @@
             e.preventDefault();
             deferredPrompt = e;
             
-            // 显示安装按钮
-            showInstallButton();
+            // 延迟显示安装按钮，避免干扰用户体验
+            setTimeout(() => {
+                showInstallButton();
+            }, 3000);
         });
         
         function showInstallButton() {
+            // 检查是否已经是PWA模式
+            if (window.matchMedia('(display-mode: standalone)').matches || 
+                window.navigator.standalone === true) {
+                console.log('已经是PWA模式，不显示安装按钮');
+                return;
+            }
+            
             if (installButton) return;
             
-            installButton = document.createElement('button');
-            installButton.className = 'btn btn-primary position-fixed';
-            installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
-            installButton.innerHTML = '<i class="fas fa-download me-2"></i>安装应用';
-            installButton.onclick = installPWA;
+            installButton = document.createElement('div');
+            installButton.className = 'position-fixed';
+            installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 9999;';
+            installButton.innerHTML = `
+                <div class="card shadow-lg border-0 install-card" style="max-width: 280px;">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <img src="/static/icons/icon-32x32.png" class="me-2" style="width: 24px; height: 24px;">
+                            <h6 class="mb-0">安装应用</h6>
+                        </div>
+                        <p class="small text-muted mb-3">获得更好的使用体验，支持离线使用</p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary btn-sm flex-fill" onclick="installPWA()">
+                                <i class="fas fa-download me-1"></i>安装
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="dismissInstall()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
             
             document.body.appendChild(installButton);
             
-            // 5秒后自动隐藏
+            // 10秒后自动隐藏
             setTimeout(() => {
-                if (installButton && installButton.parentNode) {
-                    installButton.style.opacity = '0';
-                    installButton.style.transition = 'opacity 0.3s';
-                    setTimeout(() => {
-                        if (installButton && installButton.parentNode) {
-                            installButton.parentNode.removeChild(installButton);
-                        }
-                    }, 300);
-                }
-            }, 5000);
+                dismissInstall();
+            }, 10000);
         }
         
         function installPWA() {
@@ -504,15 +574,30 @@
                 deferredPrompt.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
                         console.log('用户接受了PWA安装');
+                        // 安装成功后刷新页面
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
                     } else {
                         console.log('用户拒绝了PWA安装');
                     }
                     deferredPrompt = null;
                 });
                 
-                if (installButton && installButton.parentNode) {
-                    installButton.parentNode.removeChild(installButton);
-                }
+                dismissInstall();
+            }
+        }
+        
+        function dismissInstall() {
+            if (installButton && installButton.parentNode) {
+                installButton.style.opacity = '0';
+                installButton.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(() => {
+                    if (installButton && installButton.parentNode) {
+                        installButton.parentNode.removeChild(installButton);
+                        installButton = null;
+                    }
+                }, 300);
             }
         }
         
