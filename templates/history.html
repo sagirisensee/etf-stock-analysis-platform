@@ -70,7 +70,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
+                                    <div class="col-md-8">
                                         <h6 class="mb-1">
                                             {% if record.analysis_type == 'etf' %}ETF AI分析报告
                                             {% elif record.analysis_type == 'stock' %}股票AI分析报告
@@ -82,21 +82,20 @@
                                             <i class="fas fa-clock me-1"></i>
                                             <span class="time-display" data-timestamp="{{ record.created_at }}">加载中...</span>
                                         </p>
-                                        <p class="text-muted mb-0">
-                                            <i class="fas fa-list me-1"></i>
-                                            分析了 
-                                            {% set results = record.results | from_json %}
-                                            {{ results | length if results else 0 }} 个标的
+                                        <p class="text-muted mb-0 d-flex align-items-center justify-content-between">
+                                            <span>
+                                                <i class="fas fa-list me-1"></i>
+                                                分析了 
+                                                {% set results = record.results | from_json %}
+                                                {{ results | length if results else 0 }} 个标的
+                                            </span>
+                                            {% if results and results | length > 0 %}
+                                                <span class="text-end">
+                                                    <i class="fas fa-chart-bar me-1 text-muted"></i>
+                                                    <small class="text-muted">{{ results | length }} 个标的</small>
+                                                </span>
+                                            {% endif %}
                                         </p>
-                                    </div>
-                                    
-                                    <div class="col-md-2">
-                                        {% if results and results | length > 0 %}
-                                            <div class="text-center">
-                                                <i class="fas fa-chart-bar fa-2x text-muted"></i>
-                                                <div><small class="text-muted">{{ results | length }} 个标的</small></div>
-                                            </div>
-                                        {% endif %}
                                     </div>
                                     
                                     <div class="col-md-2 text-end">

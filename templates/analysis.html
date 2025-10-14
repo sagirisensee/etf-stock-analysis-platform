@@ -186,12 +186,6 @@
 
     // 页面加载时获取池子数据
     document.addEventListener('DOMContentLoaded', function() {
-        // 显示当前本地时间
-        displayCurrentLocalTime();
-        
-        // 每秒更新时间显示
-        setInterval(displayCurrentLocalTime, 1000);
-        
         loadPoolData();
         loadRecentAnalysis();
         
@@ -734,17 +728,23 @@
         };
         
         const html = `
-            <div class="d-flex justify-content-between align-items-center p-3 border rounded">
-                <div>
-                    <h6 class="mb-1">${typeNames[type] || type}</h6>
-                    <small class="text-muted">
-                        <i class="fas fa-clock me-1"></i>${formatDateTime(timestamp)}
-                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${count} 个标的</span>
-                    </small>
+            <div class="border rounded p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${typeNames[type] || type}</h6>
+                        <small class="text-muted d-block">
+                            <i class="fas fa-clock me-1"></i>${formatDateTime(timestamp)}
+                        </small>
+                        <small class="text-muted">
+                            <i class="fas fa-list me-1"></i>分析了 ${count} 个标的
+                        </small>
+                    </div>
+                    <div class="ms-2 flex-shrink-0">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showCurrentResults()">
+                            <i class="fas fa-eye me-1"></i>查看
+                        </button>
+                    </div>
                 </div>
-                <button class="btn btn-sm btn-outline-primary" onclick="showCurrentResults()">
-                    <i class="fas fa-eye me-1"></i>查看
-                </button>
             </div>
         `;
         
@@ -811,20 +811,26 @@
         }
         
         const html = `
-            <div class="d-flex justify-content-between align-items-center p-3 border rounded">
-                <div>
-                    <div class="d-flex align-items-center mb-1">
-                        <h6 class="mb-0 me-2">${typeName}</h6>
-                        <span class="badge ${badgeClass}">${typeName}</span>
+            <div class="border rounded p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1 flex-wrap">
+                            <h6 class="mb-0 me-2">${typeName}</h6>
+                            <span class="badge ${badgeClass}">${typeName}</span>
+                        </div>
+                        <small class="text-muted d-block">
+                            <i class="fas fa-clock me-1"></i>${formatDateTime(record.created_at)}
+                        </small>
+                        <small class="text-muted">
+                            <i class="fas fa-list me-1"></i>分析了 ${count} 个标的
+                        </small>
                     </div>
-                    <small class="text-muted">
-                        <i class="fas fa-clock me-1"></i>${formatDateTime(record.created_at)}
-                        <span class="ms-3"><i class="fas fa-list me-1"></i>分析了 ${count} 个标的</span>
-                    </small>
+                    <div class="ms-2 flex-shrink-0">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showRecentAnalysisDetail(${record.id})">
+                            <i class="fas fa-eye me-1"></i>查看
+                        </button>
+                    </div>
                 </div>
-                <button class="btn btn-sm btn-outline-primary" onclick="showRecentAnalysisDetail(${record.id})">
-                    <i class="fas fa-eye me-1"></i>查看
-                </button>
             </div>
         `;
         
@@ -999,37 +1005,6 @@
         }, 30000); // 30秒
     }
     
-    // 显示当前本地时间
-    function displayCurrentLocalTime() {
-        const now = new Date();
-        const localTimeString = now.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-        
-        // 在页面顶部显示当前本地时间
-        let timeDisplay = document.getElementById('currentLocalTime');
-        if (!timeDisplay) {
-            // 创建时间显示元素
-            timeDisplay = document.createElement('div');
-            timeDisplay.id = 'currentLocalTime';
-            timeDisplay.className = 'text-muted small text-end mb-2';
-            timeDisplay.innerHTML = `<i class="fas fa-clock me-1"></i>当前本地时间: ${localTimeString}`;
-            
-            // 插入到页面顶部
-            const container = document.querySelector('.container-fluid');
-            if (container) {
-                container.insertBefore(timeDisplay, container.firstChild);
-            }
-        } else {
-            timeDisplay.innerHTML = `<i class="fas fa-clock me-1"></i>当前本地时间: ${localTimeString}`;
-        }
-    }
 
     // 停止最近分析轮询
     function stopRecentAnalysisPolling() {
