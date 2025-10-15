@@ -517,7 +517,6 @@
         let installButton;
         
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA 安装提示已触发');
             e.preventDefault();
             deferredPrompt = e;
             
@@ -531,19 +530,16 @@
             // 检查是否已经是PWA模式
             if (window.matchMedia('(display-mode: standalone)').matches || 
                 window.navigator.standalone === true) {
-                console.log('已经是PWA模式，不显示安装按钮');
                 return;
             }
             
             // PC端不显示安装提示
             if (window.innerWidth > 768 || !('ontouchstart' in window)) {
-                console.log('PC端或非触摸设备，不显示安装提示');
                 return;
             }
             
             // 检查是否已经安装过（通过localStorage记录）
             if (localStorage.getItem('pwa-install-dismissed') === 'true') {
-                console.log('用户已拒绝安装，不显示安装提示');
                 return;
             }
             
@@ -607,7 +603,6 @@
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
-                        console.log('用户接受了PWA安装');
                         // 记录安装成功，避免重复提示
                         localStorage.setItem('pwa-install-dismissed', 'true');
                         // 安装成功后刷新页面
@@ -615,7 +610,6 @@
                             window.location.reload();
                         }, 1000);
                     } else {
-                        console.log('用户拒绝了PWA安装');
                         // 记录拒绝，避免重复提示
                         localStorage.setItem('pwa-install-dismissed', 'true');
                     }
@@ -722,10 +716,10 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/static/sw.js')
                     .then((registration) => {
-                        console.log('Service Worker 注册成功:', registration.scope);
+                        // Service Worker 注册成功
                     })
                     .catch((error) => {
-                        console.log('Service Worker 注册失败:', error);
+                        // Service Worker 注册失败
                     });
             });
         }
