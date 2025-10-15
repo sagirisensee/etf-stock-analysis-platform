@@ -609,8 +609,8 @@
                                 <small class="text-muted">价格信息</small>
                                 <div class="d-flex justify-content-between">
                                     <span>最新价：<strong>${item.price || 'N/A'}</strong></span>
-                                    <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
-                                        ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                    <span class="${(item.涨跌幅 || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                        ${(item.涨跌幅 || 0) >= 0 ? '+' : ''}${(item.涨跌幅 || 0).toFixed(2)}%
                                     </span>
                                 </div>
                             </div>
@@ -703,8 +703,8 @@
                                     <p class="mb-1">最新价：<strong>${item.price || 'N/A'}</strong></p>
                                     <p class="mb-0">
                                         涨跌幅：
-                                        <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
-                                            ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                        <span class="${(item.涨跌幅 || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                            ${(item.涨跌幅 || 0) >= 0 ? '+' : ''}${(item.涨跌幅 || 0).toFixed(2)}%
                                         </span>
                                     </p>
                                 </div>
@@ -966,9 +966,9 @@
                                         <strong>${item.name}</strong> (${item.code})
                                     </div>
                                     <div class="text-end">
-                                        <span class="badge me-2 ${(item.change || 0) > 0 ? 'bg-danger text-white' : ((item.change || 0) < 0 ? 'bg-success text-white' : 'bg-warning text-dark')}">
-                                            ${(item.change || 0) !== null && (item.change || 0) !== undefined ? 
-                                                ((item.change || 0) > 0 ? '+' : '') + (item.change || 0).toFixed(2) + '%' : 
+                                        <span class="badge me-2 ${(item.涨跌幅 || 0) > 0 ? 'bg-danger text-white' : ((item.涨跌幅 || 0) < 0 ? 'bg-success text-white' : 'bg-warning text-dark')}">
+                                            ${(item.涨跌幅 || 0) !== null && (item.涨跌幅 || 0) !== undefined ? 
+                                                ((item.涨跌幅 || 0) > 0 ? '+' : '') + (item.涨跌幅 || 0).toFixed(2) + '%' : 
                                                 'N/A'
                                             }
                                         </span>
@@ -1241,8 +1241,8 @@
                                     <p class="mb-1">最新价：<strong>${item.price || 'N/A'}</strong></p>
                                     <p class="mb-0">
                                         涨跌幅：
-                                        <span class="${(item.change || 0) >= 0 ? 'text-success' : 'text-danger'}">
-                                            ${(item.change || 0) >= 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%
+                                        <span class="${(item.涨跌幅 || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                            ${(item.涨跌幅 || 0) >= 0 ? '+' : ''}${(item.涨跌幅 || 0).toFixed(2)}%
                                         </span>
                                     </p>
                                 </div>
