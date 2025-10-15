@@ -985,7 +985,10 @@
                                     <div class="col-md-6">
                                         <h6>技术指标分析</h6>
                                         <div class="technical-analysis">
-                                            ${item.technical_analysis || '暂无技术分析'}
+                                            ${item.technical_indicators_summary && item.technical_indicators_summary.length > 0 ? 
+                                                item.technical_indicators_summary.join('<br>') : 
+                                                '暂无技术分析'
+                                            }
                                         </div>
                                     </div>
                                     <div class="col-md-6">
