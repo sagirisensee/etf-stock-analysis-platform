@@ -295,6 +295,7 @@ class _IntradaySignalGenerator:
             'name': item_info.get('name'),
             'price': item_series.get('最新价'),
             'change': change,
+            '涨跌幅': change,  # 添加涨跌幅字段，与前端保持一致
             'analysis_points': points if points else ["盘中信号平稳"]
         }
 
