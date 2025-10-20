@@ -213,6 +213,7 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
 def _parse_perplexity_response(raw_content):
     """解析Perplexity AI的响应"""
     import re
+    logger.info(f"原始响应内容: {raw_content[:500]}...")  # 添加调试日志
     
     try:
         # 尝试直接解析JSON
