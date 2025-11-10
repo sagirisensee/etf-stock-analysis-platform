@@ -806,19 +806,26 @@ def api_analyze(analysis_type):
             loop.close()
         
         # 检查分析结果
-        if results is None or len(results) == 0:
+        if results is None:
+            results = []
+        
+        # 如果结果为空，返回提示信息
+        if len(results) == 0:
             return jsonify({
                 'success': False,
-                'error': '分析失败，无法获取数据。请检查网络连接或稍后重试。'
+                'error': '分析完成，但没有获取到有效数据。可能是数据源暂时不可用或网络问题，请稍后重试。',
+                'data': []
             })
         
-        # 保存分析历史
-        save_user_analysis_history(user_id, analysis_type, results)
+        # 保存分析历史（只保存有效结果）
+        if results:
+            save_user_analysis_history(user_id, analysis_type, results)
         
         return jsonify({
             'success': True,
             'data': results,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'count': len(results)
         })
         
     except Exception as e:
