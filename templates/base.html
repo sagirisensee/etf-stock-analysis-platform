@@ -517,51 +517,37 @@
         let installButton;
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('beforeinstallprompt event fired');
             e.preventDefault();
             deferredPrompt = e;
-            console.log('deferredPrompt saved:', deferredPrompt);
 
-            // 延迟显示安装按钮，避免干扰用户体验
             setTimeout(() => {
                 showInstallButton();
             }, 3000);
         });
 
         function showInstallButton() {
-            console.log('showInstallButton called, deferredPrompt:', deferredPrompt);
-            // 检查是否已经是PWA模式
             if (window.matchMedia('(display-mode: standalone)').matches ||
                 window.navigator.standalone === true) {
-                console.log('Already in PWA mode, skipping install button');
                 return;
             }
 
-            // PC端检测 - 检查userAgent和屏幕尺寸
             const isMobile = /iPhone|iPad|iPod|Android|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                             (window.innerWidth <= 768 && 'ontouchstart' in window);
 
             if (!isMobile) {
-                console.log('Desktop device detected, skipping install button');
                 return;
             }
 
-            // 检查是否已经安装过（通过localStorage记录）
             if (localStorage.getItem('pwa-install-dismissed') === 'true') {
-                console.log('User previously dismissed install, skipping');
                 return;
             }
 
-            // 检查iOS设备
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent);
 
             if (installButton) {
-                console.log('Install button already exists');
                 return;
             }
-
-            console.log('Showing install button');
             installButton = document.createElement('div');
             installButton.className = 'position-fixed';
             installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 9999;';
@@ -612,16 +598,11 @@
         }
         
         function installPWA() {
-            console.log('installPWA called, deferredPrompt:', deferredPrompt);
             if (deferredPrompt) {
-                console.log('Calling deferredPrompt.prompt()');
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
-                    console.log('User choice result:', choiceResult.outcome);
                     if (choiceResult.outcome === 'accepted') {
-                        // 记录安装成功，避免重复提示
                         localStorage.setItem('pwa-install-dismissed', 'true');
-                        // 安装成功后刷新页面
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);
@@ -734,7 +715,6 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/static/sw.js')
                     .then((registration) => {
-                        console.log('Service Worker 注册成功:', registration.scope);
                     })
                     .catch((error) => {
                         console.log('Service Worker 注册失败:', error);

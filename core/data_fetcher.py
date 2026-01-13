@@ -80,9 +80,6 @@ class AntiCrawlingController:
 
         # 返回全局等待时间 + 计算的延迟
         total_delay = global_wait + delay
-        logger.info(
-            f"⏱️ [延迟控制] {api_name} 延迟: {total_delay:.2f}秒 (全局等待: {global_wait:.2f}秒, API延迟: {delay:.2f}秒)"
-        )
         return total_delay
 
     def record_request(self, api_name: str):
@@ -166,7 +163,6 @@ def get_all_etf_spot_realtime():
     """获取所有ETF的实时行情数据 (带缓存和多数据源)"""
     logger.info("正在从AKShare获取所有ETF实时数据...(缓存有效期: %s秒)", CACHE_EXPIRE)
 
-    # 数据源列表，按优先级排序
     etf_data_sources = [
         {
             "name": "fund_etf_spot_em",
@@ -284,7 +280,6 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
         f"🔍 [ETF历史数据] 正在获取 {etf_code} 的历史日线数据，类型: {data_type}"
     )
 
-    # 使用信号量限制并发请求
     async with get_request_semaphore():
         try:
             # 应用智能延迟控制
@@ -325,7 +320,6 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
                 daily_df["涨跌幅"] = pd.to_numeric(daily_df["涨跌幅"], errors="coerce")
                 logger.info("✅ [ETF历史数据] 涨跌幅保持原始格式")
 
-            # 数据处理完成
             return daily_df
         except (
             ConnectionError,
@@ -336,7 +330,6 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
             logger.error(
                 f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时连接错误 (将进行重试): {e}"
             )
-            # 连接错误时，添加额外的延迟
             extra_delay = random.uniform(5, 10)
             logger.info(
                 f"⏳ [ETF历史数据] 连接错误，额外等待 {extra_delay:.2f} 秒后重试"
@@ -368,7 +361,6 @@ async def get_etf_minute_history(etf_code: str, period: str = "60", days: int = 
         f"🔍 [ETF分钟线] 正在获取 {etf_code} 的{period}分钟线数据，最近{days}天"
     )
 
-    # 使用信号量限制并发请求
     async with get_request_semaphore():
         try:
             # 应用智能延迟控制
@@ -455,7 +447,6 @@ async def get_stock_minute_history(stock_code: str, period: str = "60", days: in
         f"🔍 [股票分钟线] 正在获取 {stock_code} 的{period}分钟线数据，最近{days}天"
     )
 
-    # 使用信号量限制并发请求
     async with get_request_semaphore():
         try:
             # 应用智能延迟控制
@@ -506,9 +497,7 @@ async def get_stock_minute_history(stock_code: str, period: str = "60", days: in
             # 删除空值行
             minute_df.dropna(subset=["close"], inplace=True)
 
-            logger.info(
-                f"✅ [股票分钟线] 获取成功: {stock_code}, 数据量: {len(minute_df)}条"
-            )
+            logger.info(f"✅ [股票分钟线] 获取成功: {stock_code}")
             return minute_df
 
         except (
@@ -534,22 +523,14 @@ def get_all_stock_spot_realtime():
     """获取所有A股的实时行情数据 (带缓存)"""
     logger.info("正在从AKShare获取所有A股实时数据...(缓存有效期: %s秒)", CACHE_EXPIRE)
     try:
-        # 应用智能延迟控制
         api_name = "stock_zh_a_spot_em"
         delay = anti_crawling.get_smart_delay(api_name)
-        logger.info(f"⏱️ [股票实时数据] 延迟 {delay:.2f} 秒后开始获取数据")
         time.sleep(delay)
 
-        # 使用专门获取股票实时行情的接口
-        # 调用股票实时数据接口
-        logger.info("📡 [股票实时数据] 正在调用 ak.stock_zh_a_spot_em()")
         df = ak.stock_zh_a_spot_em()
-        logger.info(f"✅ [股票实时数据] 原始数据获取成功，形状: {df.shape}")
 
-        # 记录成功请求
         anti_crawling.record_request(api_name)
 
-        # 标准化列名映射
         column_mapping = {
             "代码": "代码",
             "名称": "名称",
@@ -559,31 +540,24 @@ def get_all_stock_spot_realtime():
             "昨收": "昨收",
         }
 
-        # 重命名列
-        logger.info(f"📋 [股票实时数据] 原始列名: {list(df.columns)}")
         df = df.rename(columns=column_mapping)
-        logger.info(f"📋 [股票实时数据] 重命名后列名: {list(df.columns)}")
 
         numeric_cols = ["最新价", "昨收", "成交额"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df.dropna(subset=numeric_cols, inplace=True)
-        logger.info(f"📊 [股票实时数据] 数据清理后形状: {df.shape}")
 
-        # 涨跌幅数据处理：保持原始格式
         if "涨跌幅" in df.columns:
             df["涨跌幅"] = pd.to_numeric(df["涨跌幅"], errors="coerce")
             logger.info("✅ [股票实时数据] 涨跌幅保持原始格式")
         else:
-            # 如果没有涨跌幅列，则计算
             df["涨跌幅"] = 0.0
             mask = df["昨收"] != 0
             df.loc[mask, "涨跌幅"] = (
                 (df.loc[mask, "最新价"] - df.loc[mask, "昨收"]) / df.loc[mask, "昨收"]
             ) * 100
 
-        logger.info(f"✅ [股票实时数据] 处理完成，最终形状: {df.shape}")
         return df
     except Exception as e:
         logger.error(f"💥 [股票实时数据] 获取失败: {e}", exc_info=True)
@@ -608,7 +582,6 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
         f"🔍 [股票历史数据] 正在获取 {stock_code} 的历史日线数据，类型: {data_type}"
     )
 
-    # 使用信号量限制并发请求
     async with get_request_semaphore():
         try:
             # 应用智能延迟控制
@@ -626,25 +599,13 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
                 ak.stock_zh_a_hist,
                 symbol=stock_code,
                 period="daily",
-                adjust="qfq",  # 使用前复权数据
+                adjust="qfq",
                 start_date=start_date,
                 end_date=end_date,
             )
 
-            # 记录成功请求
             anti_crawling.record_request(api_name)
-            logger.info(
-                f"📈 [股票历史数据] {stock_code} 原始数据获取结果: {type(daily_df)}, 形状: {daily_df.shape if daily_df is not None else 'None'}"
-            )
-            if daily_df is not None and not daily_df.empty:
-                logger.info(
-                    f"📋 [股票历史数据] {stock_code} 原始列名: {list(daily_df.columns)}"
-                )
-                logger.info(
-                    f"📋 [股票历史数据] {stock_code} 前3行:\n{daily_df.head(3)}"
-                )
 
-            # 标准化列名
             if "收盘" in daily_df.columns:
                 daily_df.rename(columns={"收盘": "close"}, inplace=True)
             if "最高" in daily_df.columns:
@@ -654,9 +615,7 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
             if "日期" in daily_df.columns:
                 daily_df.rename(columns={"日期": "date"}, inplace=True)
 
-            logger.info(
-                f"✅ [股票历史数据] {stock_code} 处理完成，最终列名: {list(daily_df.columns) if daily_df is not None else 'None'}"
-            )
+            logger.info(f"✅ [股票历史数据] 获取成功: {stock_code}")
             return daily_df
         except (
             ConnectionError,
@@ -667,7 +626,6 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
             logger.error(
                 f"💥 [股票历史数据] 获取 {stock_code} 日线数据时连接错误 (将进行重试): {e}"
             )
-            # 连接错误时，添加额外的延迟
             extra_delay = random.uniform(5, 10)
             logger.info(
                 f"⏳ [股票历史数据] 连接错误，额外等待 {extra_delay:.2f} 秒后重试"
