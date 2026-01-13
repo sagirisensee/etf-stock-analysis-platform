@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>诊断页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 系统诊断页面</h1>
+
+    <div class="section">
+        <h2>1. 页面加载状态</h2>
+        <div id="pageStatus">正在检查...</div>
+    </div>
+
+    <div class="section">
+        <h2>2. API连接测试</h2>
+        <button onclick="testConnection()">测试连接</button>
+        <div id="connectionStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. 登录状态检查</h2>
+        <button onclick="checkLogin()">检查登录</button>
+        <div id="loginStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. 池子数据获取</h2>
+        <button onclick="getPools()">获取池子数据</button>
+        <div id="poolsStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>5. 浏览器信息</h2>
+        <pre id="browserInfo"></pre>
+    </div>
+
+    <script>
+        // 页面加载状态
+        window.addEventListener('load', function() {
+            document.getElementById('pageStatus').innerHTML =
+                '<div class="success">✅ 页面加载成功</div>';
+            showBrowserInfo();
+        });
+
+        // 测试连接
+        async function testConnection() {
+            const status = document.getElementById('connectionStatus');
+            try {
+                status.innerHTML = '正在测试连接...';
+                const response = await fetch('/api/check-login', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+
+                if (response.status === 302) {
+                    status.innerHTML = '<div class="error">❌ 未登录，需要登录</div>';
+                } else if (response.status === 200) {
+                    const data = await response.json();
+                    status.innerHTML = '<div class="success">✅ 连接成功：' + JSON.stringify(data) + '</div>';
+                } else {
+                    status.innerHTML = '<div class="error">❌ 状态码：' + response.status + '</div>';
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="error">❌ 连接失败：' + error.message + '</div>';
+            }
+        }
+
+        // 检查登录
+        async function checkLogin() {
+            const status = document.getElementById('loginStatus');
+            try {
+                status.innerHTML = '正在检查登录状态...';
+                const response = await fetch('/api/check-login', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    status.innerHTML = '<div class="error">❌ 未登录或会话过期</div>';
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    status.innerHTML = '<div class="success">✅ 已登录 - 用户ID：' + data.user_id + ', 用户名：' + data.username + '</div>';
+                } else {
+                    status.innerHTML = '<div class="error">❌ 登录检查失败</div>';
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="error">❌ 检查失败：' + error.message + '</div>';
+            }
+        }
+
+        // 获取池子数据
+        async function getPools() {
+            const status = document.getElementById('poolsStatus');
+            try {
+                status.innerHTML = '正在获取池子数据...';
+                const response = await fetch('/api/pools', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    status.innerHTML = '<div class="error">❌ 未登录或API返回非JSON数据</div>';
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    const etfCount = data.etf_pools ? data.etf_pools.length : 0;
+                    const stockCount = data.stock_pools ? data.stock_pools.length : 0;
+                    let details = 'ETF数量：' + etfCount + '，股票数量：' + stockCount + '<br>';
+
+                    if (etfCount > 0) {
+                        details += '<strong>ETF：</strong><br>';
+                        data.etf_pools.slice(0, 3).forEach(pool => {
+                            details += '  - ' + pool.name + ' (' + pool.code + ')<br>';
+                        });
+                        if (etfCount > 3) details += '  ... 还有 ' + (etfCount - 3) + ' 个<br>';
+                    }
+
+                    if (stockCount > 0) {
+                        details += '<strong>股票：</strong><br>';
+                        data.stock_pools.slice(0, 3).forEach(pool => {
+                            details += '  - ' + pool.name + ' (' + pool.code + ')<br>';
+                        });
+                    }
+
+                    status.innerHTML = '<div class="success">✅ 获取成功<br>' + details + '</div>';
+                } else {
+                    status.innerHTML = '<div class="error">❌ API返回错误：' + data.error + '</div>';
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="error">❌ 获取失败：' + error.message + '</div>';
+            }
+        }
+
+        // 显示浏览器信息
+        function showBrowserInfo() {
+            const info = {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.platform,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine
+            };
+            document.getElementById('browserInfo').textContent = JSON.stringify(info, null, 2);
+        }
+
+        // 自动运行页面加载检查
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                const pageStatus = document.getElementById('pageStatus');
+                if (pageStatus.innerHTML === '正在检查...') {
+                    pageStatus.innerHTML = '<div class="error">❌ 页面加载异常</div>';
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

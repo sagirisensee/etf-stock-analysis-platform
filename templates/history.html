@@ -204,6 +204,17 @@
         return typeClasses[analysisType] || 'bg-secondary';
     }
 
+    function getSignalBadgeClass(signal) {
+        switch(signal) {
+            case '强烈买入': return 'bg-success';
+            case '买入': return 'bg-primary';
+            case '持有': return 'bg-secondary';
+            case '卖出': return 'bg-warning';
+            case '强烈卖出': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
+    }
+
     // 搜索功能
     document.getElementById('searchInput').addEventListener('input', function() {
         filterHistory();
@@ -299,27 +310,24 @@
             <hr>
             <h6><i class="fas fa-list me-1"></i>分析结果 (${data.total_count} 个标的)</h6>
         `;
-        
+
         if (data.results && data.results.length > 0) {
             data.results.forEach((item, index) => {
-                const score = item.ai_score || 0;
+                const signal = item.ai_signal || '持有';
+                const confidence = item.ai_confidence || 50;
                 const comment = item.ai_comment || '暂无点评';
                 const status = item.daily_trend_status || '未知状态';
-                
-                // 根据评分确定颜色
-                let scoreClass = 'text-muted';
-                if (score >= 70) scoreClass = 'text-success';
-                else if (score >= 50) scoreClass = 'text-warning';
-                else if (score > 0) scoreClass = 'text-danger';
-                
+
                 html += `
                     <div class="card mb-3">
                         <div class="card-body">
                             <div class="row align-items-center">
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <div class="text-center">
-                                        <div class="h4 ${scoreClass}">${score}</div>
-                                        <small class="text-muted">AI评分</small>
+                                        <div class="mb-1">
+                                            <span class="badge ${getSignalBadgeClass(signal)}">${signal}</span>
+                                        </div>
+                                        <small class="text-muted">置信度 ${confidence}%</small>
                                     </div>
                                 </div>
                                 <div class="col-md-3">
@@ -331,7 +339,7 @@
                                         ${status}
                                     </span>
                                 </div>
-                                <div class="col-md-5">
+                                <div class="col-md-4">
                                     <p class="mb-0 small">${comment}</p>
                                 </div>
                             </div>

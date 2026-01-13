@@ -2,6 +2,7 @@
   "name": "AI量化投资分析平台",
   "short_name": "AI投资分析",
   "description": "智能投资分析工具，提供ETF和股票量化分析",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

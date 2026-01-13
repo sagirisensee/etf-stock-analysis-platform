@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 10px 0; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>API测试</h1>
+    <button onclick="testAPI()">测试API</button>
+    <button onclick="testLogin()">检查登录状态</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            try {
+                const response = await fetch('/api/pools');
+                const result = document.getElementById('result');
+                result.innerHTML = `<h3>API响应：</h3><pre>Status: ${response.status}\n${JSON.stringify(await response.json(), null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<h3>错误：</h3><pre>${error.message}</pre>`;
+            }
+        }
+
+        async function testLogin() {
+            try {
+                const response = await fetch('/api/check-login');
+                const result = document.getElementById('result');
+                result.innerHTML = `<h3>登录状态：</h3><pre>Status: ${response.status}\n${JSON.stringify(await response.json(), null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<h3>错误：</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

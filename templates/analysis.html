@@ -188,7 +188,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadPoolData();
         loadRecentAnalysis();
-        
+
         // 启动定时器，每30秒检查一次是否有新的分析结果
         startRecentAnalysisPolling();
     });
@@ -200,46 +200,63 @@
 
     // 加载池子数据
     async function loadPoolData() {
+        // 显示加载状态
+        const etfContainer = document.getElementById('etfPoolContainer');
+        const stockContainer = document.getElementById('stockPoolContainer');
+        if (etfContainer) {
+            etfContainer.innerHTML = '<div class="text-center"><span class="fas fa-spinner fa-spin"></span> 加载中...</div>';
+        }
+        if (stockContainer) {
+            stockContainer.innerHTML = '<div class="text-center"><span class="fas fa-spinner fa-spin"></span> 加载中...</div>';
+        }
+
         try {
             const response = await fetch('/api/pools');
-            
-            // 检查响应状态
-            if (response.status === 401 || response.status === 403) {
-                // 未登录状态，显示默认池子数据
-                etfPools = [];
-                stockPools = [];
-                renderPoolCards();
+
+            // 检查是否重定向到登录页面
+            if (response.redirected || response.url.includes('/login')) {
+                showLoginRequired();
                 return;
             }
-            
-            // 检查响应内容类型
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                // 如果返回的不是JSON（可能是HTML登录页面），说明未登录
-                etfPools = [];
-                stockPools = [];
-                renderPoolCards();
+
+            // 检查401未授权
+            if (response.status === 401) {
+                showLoginRequired();
                 return;
             }
-            
-            const data = await response.json();
-            
+
+            // 先获取文本，检查是否是HTML
+            const text = await response.text();
+
+            // 检查是否是HTML（登录页面）
+            if (text.trim().startsWith('<') && text.includes('login')) {
+                showLoginRequired();
+                return;
+            }
+
+            // 尝试解析JSON
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                showLoginRequired();
+                return;
+            }
+
             if (data.success) {
                 etfPools = data.etf_pools || [];
                 stockPools = data.stock_pools || [];
                 renderPoolCards();
+            } else if (data.need_login) {
+                console.log('API要求登录');
+                showLoginRequired();
             } else {
+                console.error('API返回错误:', data.error);
                 showAlert('加载池子数据失败: ' + data.error, 'danger');
             }
         } catch (error) {
-            // 如果是JSON解析错误，可能是未登录，不显示错误
-            if (error.message.includes('Unexpected token')) {
-                etfPools = [];
-                stockPools = [];
-                renderPoolCards();
-            } else {
-                showAlert('加载池子数据失败: ' + error.message, 'danger');
-            }
+            console.error('加载池子数据异常:', error);
+            showLoginRequired();
         }
     }
 
@@ -504,6 +521,12 @@
 
     // 显示分析结果
     function displayResults(data, type, timestamp) {
+        // 确保 type 是字符串
+        if (typeof type !== 'string') {
+            console.error('Invalid type:', type);
+            type = String(type || 'etf');
+        }
+
         const resultsSection = document.getElementById('resultsSection');
         const resultsContent = document.getElementById('resultsContent');
         const analysisTypeSpan = document.getElementById('analysisType');
@@ -547,6 +570,18 @@
         return 'poor';
     }
 
+    // 获取信号样式类
+    function getSignalBadgeClass(signal) {
+        switch(signal) {
+            case '强烈买入': return 'bg-success';
+            case '买入': return 'bg-primary';
+            case '持有': return 'bg-secondary';
+            case '卖出': return 'bg-warning';
+            case '强烈卖出': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
+    }
+
     // 切换技术指标显示
     function toggleTechnicalIndicators(index) {
         const summaryDiv = document.getElementById(`indicators-${index}-summary`);
@@ -566,26 +601,273 @@
         }
     }
 
+    // 生成买卖信号HTML
+    function generateSignalHTML(signal_data) {
+        if (!signal_data) {
+            return '<span class="text-muted">无信号</span>';
+        }
+        
+        const signalType = signal_data.signal_type || 'Hold';
+        const signalScore = signal_data.signal_score || 50;
+        const signalConfidence = signal_data.confidence || 0;
+        const signalStrength = signal_data.signal_strength || 'Weak';
+        
+        // 信号类型样式
+        const signalStyles = {
+            'Strong Buy': { badge: 'bg-success', icon: 'fa-arrow-up', text: '强烈买入' },
+            'Buy': { badge: 'bg-success', icon: 'fa-arrow-up', text: '买入' },
+            'Hold': { badge: 'bg-warning', icon: 'fa-minus', text: '持有' },
+            'Sell': { badge: 'bg-danger', icon: 'fa-arrow-down', text: '卖出' },
+            'Strong Sell': { badge: 'bg-danger', icon: 'fa-arrow-down', text: '强烈卖出' }
+        };
+        
+        const style = signalStyles[signalType] || signalStyles['Hold'];
+        const strengthClass = signalStrength === 'Strong' ? 'text-primary' : 'text-muted';
+        
+        return `
+            <div class="signal-badge ${style.badge}">
+                <i class="fas ${style.icon} me-1"></i>
+                ${style.text}
+                ${signalStrength === 'Strong' ? '（强）' : '（弱）'}
+            </div>
+            <div class="mt-1 small text-muted">
+                评分：${signalScore.toFixed(1)}/100，置信度：${signalConfidence.toFixed(0)}%
+            </div>
+            ${signal_data.signal_reasons && signal_data.signal_reasons.length > 0 ? `
+                <div class="mt-1 small">
+                    <span class="text-muted">理由：</span>
+                    ${signal_data.signal_reasons.slice(0, 2).join('、')}
+                </div>
+            ` : ''}
+        `;
+    }
+    
+    // 生成前瞻性指标HTML
+    function generateForwardIndicatorsHTML(forward_indicators) {
+        if (!forward_indicators) {
+            return '<span class="text-muted">无数据</span>';
+        }
+        
+        const rsi = forward_indicators.RSI_14;
+        const kdj_k = forward_indicators.KDJ_K;
+        const kdj_d = forward_indicators.KDJ_D;
+        const kdj_j = forward_indicators.KDJ_J;
+        const cci = forward_indicators.CCI_14;
+        const obv = forward_indicators.OBV;
+        const wr1 = forward_indicators.WR1;
+        const wr2 = forward_indicators.WR2;
+        
+        return `
+            <div class="row">
+                ${rsi !== null && rsi !== undefined ? `
+                    <div class="col-6 mb-2">
+                        <small class="text-muted">RSI</small>
+                        <div class="badge ${rsi > 70 ? 'bg-danger' : (rsi < 30 ? 'bg-success' : 'bg-light text-dark')}">
+                            ${rsi.toFixed(1)}
+                            ${rsi > 70 ? '超买' : (rsi < 30 ? '超卖' : '正常')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${kdj_k !== null && kdj_k !== undefined ? `
+                    <div class="col-6 mb-2">
+                        <small class="text-muted">KDJ</small>
+                        <div class="badge ${kdj_j > 100 ? 'bg-danger' : (kdj_j < 0 ? 'bg-success' : 'bg-light text-dark')}">
+                            K:${kdj_k.toFixed(1)} D:${kdj_d.toFixed(1)} J:${kdj_j.toFixed(1)}
+                            ${kdj_j > 100 ? '超买' : (kdj_j < 0 ? '超卖' : '正常')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${cci !== null && cci !== undefined ? `
+                    <div class="col-6 mb-2">
+                        <small class="text-muted">CCI</small>
+                        <div class="badge ${cci > 100 ? 'bg-danger' : (cci < -100 ? 'bg-success' : 'bg-light text-dark')}">
+                            ${cci.toFixed(1)}
+                            ${cci > 100 ? '超买' : (cci < -100 ? '超卖' : '正常')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${obv !== null && obv !== undefined ? `
+                    <div class="col-6 mb-2">
+                        <small class="text-muted">OBV</small>
+                        <div class="badge ${obv > 0 ? 'bg-success' : (obv < 0 ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${obv > 0 ? '资金流入' : (obv < 0 ? '资金流出' : '资金持平')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${wr1 !== null && wr1 !== undefined ? `
+                    <div class="col-6 mb-2">
+                        <small class="text-muted">威廉指标(WR1/WR2)</small>
+                        <div class="d-flex gap-1">
+                            <div class="badge ${wr1 > 80 ? 'bg-danger' : (wr1 < 20 ? 'bg-success' : 'bg-light text-dark')}">
+                                WR1: ${wr1.toFixed(1)}
+                            </div>
+                            <div class="badge ${wr2 > 80 ? 'bg-danger' : (wr2 < 20 ? 'bg-success' : 'bg-light text-dark')}">
+                                WR2: ${wr2.toFixed(1)}
+                            </div>
+                        </div>
+                        <small class="text-muted mt-1" style="font-size: 0.7rem;">
+                            ${wr1 > 80 || wr2 > 80 ? '超卖(反弹)' : (wr1 < 20 || wr2 < 20 ? '超买(回调)' : '正常区间')}
+                        </small>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    // 生成价格预测HTML
+function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_detailed_probability, ai_pred_1d, ai_pred_3d) {
+        let html = '';
+
+        // 优先使用 AI 计算的预测数据
+        const useAI = ai_detailed_probability &&
+                        ai_detailed_probability.up !== undefined &&
+                        ai_detailed_probability.down !== undefined &&
+                        ai_detailed_probability.sideways !== undefined;
+
+        if (useAI) {
+            // AI 驱动的预测
+            html += `
+                <div class="mb-2">
+                    <small class="text-muted">AI交易信号 <span class="badge bg-primary">AI驱动</span></small>
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${getSignalBadgeClass(ai_signal || '持有')} me-2">${ai_signal || '持有'}</span>
+                        <span class="badge bg-info">置信度 ${ai_confidence || 50}%</span>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <small class="text-muted fw-bold">AI 计算的趋势概率</small>
+                    <div>
+                        <span class="text-success">上涨 ${ai_detailed_probability.up}%</span> |
+                        <span class="text-danger">下跌 ${ai_detailed_probability.down}%</span> |
+                        <span class="text-secondary">横盘 ${ai_detailed_probability.sideways}%</span>
+                    </div>
+                </div>
+
+                ${ai_pred_1d && ai_pred_1d.trend ? `
+                    <div class="mb-2">
+                        <small class="text-muted">AI 1日预测</small>
+                        <div class="badge ${ai_pred_1d.trend === '上涨' ? 'bg-success' : (ai_pred_1d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${ai_pred_1d.trend}至${ai_pred_1d.target || 'N/A'} (置信度: ${ai_pred_1d.confidence || 50})
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${ai_pred_3d && ai_pred_3d.trend ? `
+                    <div class="mb-2">
+                        <small class="text-muted">AI 3日预测</small>
+                        <div class="badge ${ai_pred_3d.trend === '上涨' ? 'bg-success' : (ai_pred_3d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${ai_pred_3d.trend}至${ai_pred_3d.target || 'N/A'} (置信度: ${ai_pred_3d.confidence || 50})
+                        </div>
+                    </div>
+                ` : ''}
+            `;} else {
+            // 降级到 PricePredictor 的预测数据
+            if (!prediction_data || !prediction_data.predictions) {
+                return '<span class="text-muted">无预测数据</span>';
+            }
+
+            const predictions = prediction_data.predictions;
+            const pred_1d = predictions.prediction_1d || {};
+            const pred_3d = predictions.prediction_3d || {};
+            const trend_probability = prediction_data.trend_probability || {};
+
+            html += `
+                <div class="mb-2">
+                    <small class="text-muted">AI交易信号 <span class="badge bg-warning">算法计算</span></small>
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${getSignalBadgeClass(ai_signal || '持有')} me-2">${ai_signal || '持有'}</span>
+                        <span class="badge bg-info">置信度 ${ai_confidence || 50}%</span>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">1日预测</small>
+                        <div class="badge ${pred_1d.trend === '上涨' ? 'bg-success' : (pred_1d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${pred_1d.trend || '横盘'}至${pred_1d.target || 'N/A'}
+                            (置信度:${pred_1d.confidence || 'low'})
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">3日预测</small>
+                        <div class="badge ${pred_3d.trend === '上涨' ? 'bg-success' : (pred_3d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${pred_3d.trend || '横盘'}至${pred_3d.target || 'N/A'}
+                            (置信度:${pred_3d.confidence || 'low'})
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (support_resistance.resistance && support_resistance.resistance.length > 0) {
+                html += `
+                    <div class="mt-1 small">
+                        <span class="text-muted fw-bold">阻力位:</span>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${support_resistance.resistance.map(r => `<span class="badge bg-warning text-dark">${r.toFixed(2)}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        return html;
+    }
+
+    // 生成预警HTML
+    function generateAlertHTML(alert_data) {
+        if (!alert_data || !alert_data.alerts || alert_data.alerts.length === 0) {
+            return '<span class="text-muted">无预警</span>';
+        }
+        
+        const overall_risk = alert_data.overall_risk || 'low';
+        const alert_count = alert_data.alert_count || {};
+        const alerts = alert_data.alerts || [];
+        
+        const riskStyles = {
+            'high': { badge: 'bg-danger', icon: 'fa-exclamation-circle', text: '高风险' },
+            'medium': { badge: 'bg-warning', icon: 'fa-exclamation-triangle', text: '中风险' },
+            'low': { badge: 'bg-info', icon: 'fa-info-circle', text: '低风险' }
+        };
+        
+        const riskStyle = riskStyles[overall_risk] || riskStyles['low'];
+        
+        return `
+            <div class="alert ${riskStyle.badge} mb-2">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="fas ${riskStyle.icon} me-2"></i>
+                    <strong>整体风险：${riskStyle.text}</strong>
+                </div>
+                <div class="small mb-2">
+                    预警数量：<span class="badge bg-danger mx-1">${alert_count.high || 0}高风险</span>
+                    <span class="badge bg-warning mx-1">${alert_count.medium || 0}中风险</span>
+                    <span class="badge bg-info mx-1">${alert_count.low || 0}低风险</span>
+                </div>
+                ${alerts.length > 0 ? `
+                    <div class="small">
+                        <strong>关键预警：</strong>
+                        <ul class="mb-0 mt-1 ps-3">
+                            ${alerts.slice(0, 3).map(alert => `<li>${alert.message}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
     // 生成AI分析结果HTML
-    function generateAIResults(data) {
+    function generateAIResults(data, showDebug = false) {
         if (!data || data.length === 0) {
             return '<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i><p>暂无分析数据</p></div>';
         }
-        
+
         let html = '<div class="row">';
-        
+
         data.forEach((item, index) => {
-            // 处理数据缺失情况
-            let scoreClass, scoreDisplay;
-            if (item.ai_score === "数据缺失") {
-                scoreClass = "score-badge-data-missing";
-                scoreDisplay = "数据缺失";
-            } else {
-                scoreClass = getScoreClass(item.ai_score || 0);
-                scoreDisplay = item.ai_score || 0;
-            }
             const rank = index + 1;
-            
+            const signal = item.ai_signal || '持有';
+            const confidence = item.ai_confidence || 50;
+
             html += `
                 <div class="col-md-6 mb-4">
                     <div class="card h-100">
@@ -600,33 +882,86 @@
                                         <code>${item.code || 'N/A'}</code>
                                     </p>
                                 </div>
-                                <div class="score-badge ${scoreClass}">
-                                    ${scoreDisplay}
+                                <div>
+                                    <span class="badge ${getSignalBadgeClass(signal)} me-1">${signal}</span>
+                                    <span class="badge bg-info">置信度 ${confidence}%</span>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-3">
-                                <small class="text-muted">价格信息</small>
-                                <div class="d-flex justify-content-between">
-                                    <span>最新价：<strong>${item.price || 'N/A'}</strong></span>
-                                    <span class="${(item.涨跌幅 || 0) >= 0 ? 'text-success' : 'text-danger'}">
-                                        ${(item.涨跌幅 || 0) >= 0 ? '+' : ''}${(item.涨跌幅 || 0).toFixed(2)}%
-                                    </span>
+                                <small class="text-muted">交易建议</small>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">涨跌概率</small>
+                                        <strong>${item.ai_probability || '未知'}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">支撑位</small>
+                                        <strong>${item.ai_support || '未知'}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">阻力位</small>
+                                        <strong>${item.ai_resistance || '未知'}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">目标价</small>
+                                        <strong class="text-success">${item.ai_target || '未知'}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">止损价</small>
+                                        <strong class="text-danger">${item.ai_stop_loss || '未知'}</strong>
+                                    </div>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-3">
                                 <small class="text-muted">AI点评</small>
                                 <p class="small">
-                                    ${item.ai_comment ? 
+                                    ${item.ai_comment ?
                                         (item.ai_comment.includes('LLM分析服务异常') || item.ai_comment.includes('AI分析服务') ?
                                             `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>${item.ai_comment}</span>` :
                                             item.ai_comment
-                                        ) : 
+                                        ) :
                                         '暂无点评'
                                     }
                                 </p>
                             </div>
+                            
+                             ${!item.ai_signal && item.signal_data ? `
+                                <div class="mb-3">
+                                    <small class="text-muted">买卖信号</small>
+                                    ${generateSignalHTML(item.signal_data)}
+                                </div>
+                             ` : ''}
+                             
+                             ${item.forward_indicators ? `
+                                <div class="mb-3">
+                                    <small class="text-muted">前瞻性指标</small>
+                                    ${generateForwardIndicatorsHTML(item.forward_indicators)}
+                                </div>
+                             ` : ''}
+                             
+                             ${item.prediction_data ? `
+                                <div class="mb-3">
+                                    <small class="text-muted">价格预测</small>
+                                    ${generatePredictionHTML(
+                                        item.prediction_data,
+                                        item.ai_signal,
+                                        item.ai_confidence,
+                                        item.ai_detailed_probability,
+                                        item.ai_pred_1d,
+                                        item.ai_pred_3d,
+                                        showDebug
+                                    )}
+                                </div>
+                             ` : ''}
+                             
+                             ${item.alert_data ? `
+                                <div class="mb-3">
+                                    <small class="text-muted">风险预警</small>
+                                    ${generateAlertHTML(item.alert_data)}
+                                </div>
+                             ` : ''}
                             
                             <div class="mb-3">
                                 <small class="text-muted">日线趋势</small>
@@ -953,13 +1288,14 @@
             
             results.forEach((item, index) => {
                 const dailyTrendStatus = item.daily_trend_status || '未知状态';
-                const aiScore = item.ai_score || 'N/A';
+                const aiSignal = item.ai_signal || '持有';
+                const aiConfidence = item.ai_confidence || 50;
                 const aiComment = item.ai_comment || '暂无AI分析';
-                
+
                 detailHtml += `
                     <div class="accordion-item">
                         <h2 class="accordion-header">
-                            <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" 
+                            <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button"
                                     data-bs-toggle="collapse" data-bs-target="#collapse${index}">
                                 <div class="d-flex justify-content-between w-100 me-3">
                                     <div>
@@ -967,12 +1303,13 @@
                                     </div>
                                     <div class="text-end">
                                         <span class="badge me-2 ${(item.涨跌幅 || 0) > 0 ? 'bg-danger text-white' : ((item.涨跌幅 || 0) < 0 ? 'bg-success text-white' : 'bg-warning text-dark')}">
-                                            ${(item.涨跌幅 || 0) !== null && (item.涨跌幅 || 0) !== undefined ? 
-                                                ((item.涨跌幅 || 0) > 0 ? '+' : '') + (item.涨跌幅 || 0).toFixed(2) + '%' : 
+                                            ${(item.涨跌幅 || 0) !== null && (item.涨跌幅 || 0) !== undefined ?
+                                                ((item.涨跌幅 || 0) > 0 ? '+' : '') + (item.涨跌幅 || 0).toFixed(2) + '%' :
                                                 'N/A'
                                             }
                                         </span>
-                                        <span class="badge bg-primary me-2">AI评分: ${aiScore}</span>
+                                        <span class="badge ${getSignalBadgeClass(aiSignal)} me-2">${aiSignal}</span>
+                                        <span class="badge bg-info me-2">置信度 ${aiConfidence}%</span>
                                         <span class="badge ${getTrendBadgeClass(dailyTrendStatus)}">${dailyTrendStatus}</span>
                                     </div>
                                 </div>
@@ -1198,7 +1535,7 @@
         title.innerHTML = `<i class="fas fa-robot me-2"></i>${typeNames[type] || 'AI分析结果'}`;
         
         // 生成AI分析内容
-        content.innerHTML = generateAIResults(data);
+        content.innerHTML = generateAIResults(data, type && type.includes('debug'));
         
         // 显示弹窗
         modal.show();
@@ -1349,6 +1686,25 @@
         const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
         if (modal) {
             modal.hide();
+        }
+    }
+
+    // 显示需要登录提示
+    function showLoginRequired() {
+        const etfContainer = document.getElementById('etfPoolContainer');
+        const stockContainer = document.getElementById('stockPoolContainer');
+        if (etfContainer) {
+            etfContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-user-lock me-2"></i>
+                        请先<a href="/login" class="alert-link">登录</a>查看您的标的池
+                    </div>
+                </div>
+            `;
+        }
+        if (stockContainer) {
+            stockContainer.innerHTML = '';
         }
     }
 

@@ -3,13 +3,9 @@ const urlsToCache = [
   '/',
   '/analysis',
   '/history',
-  '/static/css/bootstrap.min.css',
-  '/static/js/bootstrap.bundle.min.js',
-  '/static/js/jquery.min.js',
-  '/static/fonts/fontawesome/css/all.min.css',
-  '/static/fonts/fontawesome/webfonts/fa-solid-900.woff2',
-  '/static/fonts/fontawesome/webfonts/fa-regular-400.woff2',
-  '/static/fonts/fontawesome/webfonts/fa-brands-400.woff2'
+  '/static/manifest.json',
+  '/static/icons/icon-192x192.png',
+  '/static/icons/icon-512x512.png'
 ];
 
 // 安装事件 - 缓存资源
@@ -20,6 +16,10 @@ self.addEventListener('install', event => {
       .then(cache => {
         console.log('缓存已打开');
         return cache.addAll(urlsToCache);
+      })
+      .then(() => {
+        // 立即激活新的 Service Worker
+        return self.skipWaiting();
       })
       .catch(error => {
         console.log('缓存安装失败:', error);
@@ -40,6 +40,9 @@ self.addEventListener('activate', event => {
           }
         })
       );
+    }).then(() => {
+      // 立即控制所有页面
+      return self.clients.claim();
     })
   );
 });
@@ -48,6 +51,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   // 只处理GET请求
   if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // 跳过 chrome-extension 和其他非http(s) 请求
+  if (!event.request.url.startsWith('http')) {
     return;
   }
 
@@ -85,6 +93,10 @@ self.addEventListener('fetch', event => {
           .then(response => {
             // 检查响应是否有效
             if (!response || response.status !== 200 || response.type !== 'basic') {
+              // 对于跨域请求，直接返回响应
+              if (response.type === 'opaque' || response.type === 'cors') {
+                return response;
+              }
               return response;
             }
             // 缓存响应
@@ -100,6 +112,8 @@ self.addEventListener('fetch', event => {
             if (event.request.destination === 'document') {
               return caches.match('/');
             }
+            // 对于其他请求，返回空的 Response
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
           });
       })
   );
