@@ -714,17 +714,17 @@
         `;
     }
     
-    // 生成价格预测HTML
+    // 生成价格预测HTML - 完全AI驱动，没有算法预测回退
 function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_detailed_probability, ai_pred_1d, ai_pred_3d) {
         let html = '';
 
-        // 优先使用 AI 计算的预测数据
-        const useAI = ai_detailed_probability &&
+        // 只使用 AI 计算的预测数据
+        const hasAIData = ai_detailed_probability &&
                         ai_detailed_probability.up !== undefined &&
                         ai_detailed_probability.down !== undefined &&
                         ai_detailed_probability.sideways !== undefined;
 
-        if (useAI) {
+        if (hasAIData) {
             // AI 驱动的预测
             html += `
                 <div class="mb-2">
@@ -744,72 +744,43 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
                     </div>
                 </div>
 
-                ${ai_pred_1d && ai_pred_1d.trend ? `
-                    <div class="mb-2">
-                        <small class="text-muted">AI 1日预测</small>
-                        <div class="badge ${ai_pred_1d.trend === '上涨' ? 'bg-success' : (ai_pred_1d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
-                            ${ai_pred_1d.trend}至${ai_pred_1d.target || 'N/A'} (置信度: ${ai_pred_1d.confidence || 50})
+                ${ai_pred_1d && (ai_pred_1d.trend || ai_pred_1d.target) ? `
+                    <div class="mb-3">
+                        <small class="text-muted d-block mb-1">📈 AI 1日预测</small>
+                        <div class="d-flex align-items-center">
+                            <div class="badge ${ai_pred_1d.trend && (ai_pred_1d.trend.includes('上涨') || ai_pred_1d.trend.includes('看多')) ? 'bg-success' : (ai_pred_1d.trend && ai_pred_1d.trend.includes('下跌') ? 'bg-danger' : 'bg-light text-dark border')}">
+                                ${ai_pred_1d.trend || '预测'}至${ai_pred_1d.target || 'N/A'}
+                            </div>
+                            <div class="ms-2 d-flex align-items-center">
+                                <span class="text-muted small me-1">置信度:</span>
+                                <span class="badge ${(ai_pred_1d.confidence || 0) >= 60 ? 'bg-info' : ((ai_pred_1d.confidence || 0) >= 40 ? 'bg-secondary' : 'bg-light text-dark')}">
+                                    ${ai_pred_1d.confidence || 50}%
+                                </span>
+                            </div>
                         </div>
                     </div>
                 ` : ''}
 
-                ${ai_pred_3d && ai_pred_3d.trend ? `
-                    <div class="mb-2">
-                        <small class="text-muted">AI 3日预测</small>
-                        <div class="badge ${ai_pred_3d.trend === '上涨' ? 'bg-success' : (ai_pred_3d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
-                            ${ai_pred_3d.trend}至${ai_pred_3d.target || 'N/A'} (置信度: ${ai_pred_3d.confidence || 50})
+                ${ai_pred_3d && (ai_pred_3d.trend || ai_pred_3d.target) ? `
+                    <div class="mb-3">
+                        <small class="text-muted d-block mb-1">📊 AI 3日预测</small>
+                        <div class="d-flex align-items-center">
+                            <div class="badge ${ai_pred_3d.trend && (ai_pred_3d.trend.includes('上涨') || ai_pred_3d.trend.includes('看多')) ? 'bg-success' : (ai_pred_3d.trend && ai_pred_3d.trend.includes('下跌') ? 'bg-danger' : 'bg-light text-dark border')}">
+                                ${ai_pred_3d.trend || '预测'}至${ai_pred_3d.target || 'N/A'}
+                            </div>
+                            <div class="ms-2 d-flex align-items-center">
+                                <span class="text-muted small me-1">置信度:</span>
+                                <span class="badge ${(ai_pred_3d.confidence || 0) >= 60 ? 'bg-info' : ((ai_pred_3d.confidence || 0) >= 40 ? 'bg-secondary' : 'bg-light text-dark')}">
+                                    ${ai_pred_3d.confidence || 50}%
+                                </span>
+                            </div>
                         </div>
                     </div>
                 ` : ''}
-            `;} else {
-            // 降级到 PricePredictor 的预测数据
-            if (!prediction_data || !prediction_data.predictions) {
-                return '<span class="text-muted">无预测数据</span>';
-            }
-
-            const predictions = prediction_data.predictions;
-            const pred_1d = predictions.prediction_1d || {};
-            const pred_3d = predictions.prediction_3d || {};
-            const trend_probability = prediction_data.trend_probability || {};
-            const support_resistance = prediction_data.support_resistance || {support:[], resistance:[]};
-
-            html += `
-                <div class="mb-2">
-                    <small class="text-muted">AI交易信号 <span class="badge bg-warning">算法计算</span></small>
-                    <div class="d-flex align-items-center">
-                        <span class="badge ${getSignalBadgeClass(ai_signal || '持有')} me-2">${ai_signal || '持有'}</span>
-                        <span class="badge bg-info">置信度 ${ai_confidence || 50}%</span>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-6">
-                        <small class="text-muted">1日预测</small>
-                        <div class="badge ${pred_1d.trend === '上涨' ? 'bg-success' : (pred_1d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
-                            ${pred_1d.trend || '横盘'}至${pred_1d.target || 'N/A'}
-                            (置信度:${pred_1d.confidence || 'low'})
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <small class="text-muted">3日预测</small>
-                        <div class="badge ${pred_3d.trend === '上涨' ? 'bg-success' : (pred_3d.trend === '下跌' ? 'bg-danger' : 'bg-light text-dark')}">
-                            ${pred_3d.trend || '横盘'}至${pred_3d.target || 'N/A'}
-                            (置信度:${pred_3d.confidence || 'low'})
-                        </div>
-                    </div>
-                </div>
             `;
-
-            if (support_resistance.resistance && support_resistance.resistance.length > 0) {
-                html += `
-                    <div class="mt-1 small">
-                        <span class="text-muted fw-bold">阻力位:</span>
-                        <div class="d-flex flex-wrap gap-1">
-                            ${support_resistance.resistance.map(r => `<span class="badge bg-warning text-dark">${r.toFixed(2)}</span>`).join('')}
-                        </div>
-                    </div>
-                `;
-            }
+        } else {
+            // 无AI预测数据
+            return '<span class="text-muted">AI预测数据正在计算中...</span>';
         }
 
         return html;
@@ -942,17 +913,16 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
                                 </div>
                              ` : ''}
                              
-                             ${item.prediction_data ? `
+                             ${(item.ai_detailed_probability || item.ai_pred_1d || item.ai_pred_3d) ? `
                                 <div class="mb-3">
                                     <small class="text-muted">价格预测</small>
                                     ${generatePredictionHTML(
-                                        item.prediction_data,
+                                        null,  // 不使用算法预测数据
                                         item.ai_signal,
                                         item.ai_confidence,
-                                        item.ai_detailed_probability,
-                                        item.ai_pred_1d,
-                                        item.ai_pred_3d,
-                                        showDebug
+                                        item.ai_detailed_probability || {},
+                                        item.ai_pred_1d || {},
+                                        item.ai_pred_3d || {}
                                     )}
                                 </div>
                              ` : ''}
@@ -1334,18 +1304,17 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
                                             ${generateForwardIndicatorsHTML(item.forward_indicators)}
                                         ` : ''}
                                         
-                                        ${item.prediction_data ? `
+                                        ${(item.ai_detailed_probability || item.ai_pred_1d || item.ai_pred_3d) ? `
                                             <h6 class="mt-3">价格预测</h6>
                                             ${generatePredictionHTML(
-                                                item.prediction_data,
+                                                null,  // 不使用算法预测数据
                                                 item.ai_signal,
                                                 item.ai_confidence,
-                                                item.ai_detailed_probability,
-                                                item.ai_pred_1d,
-                                                item.ai_pred_3d,
-                                                false
+                                                item.ai_detailed_probability || {},
+                                                item.ai_pred_1d || {},
+                                                item.ai_pred_3d || {}
                                             )}
-                                        ` : ''}
+                                        ` : '<p class="text-muted mt-3">AI预测数据计算中...</p>'}
                                         
                                         ${item.alert_data ? `
                                             <h6 class="mt-3">风险预警</h6>

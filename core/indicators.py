@@ -17,11 +17,18 @@ def calculate_ema_talib_style(series, period):
     if first_valid_idx is None:
         return pd.Series([np.nan] * len(series), index=series.index)
 
+    # 获取第一个有效值的整数位置
+    try:
+        first_valid_pos = series.index.get_loc(first_valid_idx)
+    except Exception:
+        # 如果get_loc失败，尝试找到第一个非NaN的位置
+        first_valid_pos = series.notna().argmax()
+
     # 初始值 = 第一个有效值
-    ema.iloc[first_valid_idx] = series.iloc[first_valid_idx]
+    ema.iloc[first_valid_pos] = series.iloc[first_valid_pos]
 
     # 递归计算后续值
-    for i in range(first_valid_idx + 1, len(series)):
+    for i in range(first_valid_pos + 1, len(series)):
         if pd.isna(series.iloc[i]):
             ema.iloc[i] = ema.iloc[i - 1]  # 保持前值
         else:
@@ -424,7 +431,12 @@ def calculate_forward_indicators(df):
             # 更高效的OBV计算
             price_diff = df["close"].diff()
             obv_direction = np.sign(price_diff)
-            obv_direction[0] = 0  # 第一天的diff为NaN，设为0
+            # 使用iloc设置第一个位置为0（避免FutureWarning）
+            if len(obv_direction) > 0:
+                obv_direction = (
+                    obv_direction.copy()
+                )  # 创建副本以避免SettingWithCopyWarning
+                obv_direction.iloc[0] = 0  # 第一天的diff为NaN，设为0
             df["OBV"] = (obv_direction * df[vol_col]).cumsum()
 
             # 注意：OBV的绝对值因基准不同而不同

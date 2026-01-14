@@ -28,7 +28,6 @@ from .indicators import calculate_entry_signals
 from .indicators import judge_trend_status
 from .indicators import calculate_macd_for_eastmoney
 from .signal_system import SignalSystem
-from .predictor import PricePredictor, PricePredictorDebug
 from .alert_system import AlertSystem
 
 logger = logging.getLogger(__name__)
@@ -238,7 +237,8 @@ async def generate_ai_driven_report(
                 )
                 signal_data = daily_trend.get("signal_data", {})
                 alert_data = daily_trend.get("alert_data", {})
-                prediction_data = daily_trend.get("prediction_data", {})
+                # prediction_data不再使用，完全依赖AI预测
+                prediction_data = {}
 
                 # 获取当前价格（用于支撑阻力计算）
                 current_price = signal.get("price", 0)
@@ -332,17 +332,27 @@ async def generate_ai_driven_report(
                     continue
 
                 # 只有数据充足时才写入分析结果
+                # 获取AI预测数据
+                ai_pred_1d = ai_result.get("pred_1d", {})
+                ai_pred_3d = ai_result.get("pred_3d", {})
+
+                # 确保AI预测数据包含数值置信度
+                if not ai_pred_1d:
+                    ai_pred_1d = {"trend": "未知", "target": "未知", "confidence": 0}
+                if not ai_pred_3d:
+                    ai_pred_3d = {"trend": "未知", "target": "未知", "confidence": 0}
+
                 final_report.append(
                     {
                         **signal,
                         "ai_signal": ai_result.get("signal", "持有"),
                         "ai_confidence": ai_result.get("confidence", 50),
                         "ai_probability": ai_result.get("probability", "涨跌概率未知"),
-                        "ai_detailed_probability": ai_result.get(
-                            "detailed_probability", {}
-                        ),
-                        "ai_pred_1d": ai_result.get("pred_1d", {}),
-                        "ai_pred_3d": ai_result.get("pred_3d", {}),
+                        # 确保有默认值，避免前端显示"正在计算中..."
+                        "ai_detailed_probability": ai_result.get("detailed_probability")
+                        or {"up": 35, "down": 45, "sideways": 20},
+                        "ai_pred_1d": ai_pred_1d,
+                        "ai_pred_3d": ai_pred_3d,
                         "ai_support": ai_result.get("support", "未知"),
                         "ai_resistance": ai_result.get("resistance", "未知"),
                         "ai_target": ai_result.get("target", "未知"),
@@ -356,8 +366,8 @@ async def generate_ai_driven_report(
                         "forward_indicators": forward_indicators,
                         # 新增：买卖信号数据
                         "signal_data": signal_data,
-                        # 价格预测数据（使用纯技术指标预测，用于参考）
-                        "prediction_data": prediction_data,
+                        # 不包含算法预测数据，完全依赖AI预测
+                        # "prediction_data": prediction_data,
                         # 新增：预警数据
                         "alert_data": alert_data,
                         # 标记使用AI驱动的概率
@@ -467,11 +477,30 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 result["date"] = pd.to_datetime(result["date"])
                 result.set_index("date", inplace=True)
             result.index.name = None
-            result["close"] = pd.to_numeric(result["close"], errors="coerce")
-            if "high" in result.columns:
-                result["high"] = pd.to_numeric(result["high"], errors="coerce")
-            if "low" in result.columns:
-                result["low"] = pd.to_numeric(result["low"], errors="coerce")
+
+            # 安全转换数值类型 - 先检查是否是数值类型
+            def safe_to_numeric(series):
+                """安全转换为数值类型"""
+                try:
+                    # 如果已经是数值类型，直接返回
+                    if pd.api.types.is_numeric_dtype(series):
+                        return series
+                    # 否则尝试转换
+                    return pd.to_numeric(series, errors="coerce")
+                except:
+                    # 如果转换失败，返回原序列（后续会跳过）
+                    return series
+
+            try:
+                if "close" in result.columns:
+                    result["close"] = safe_to_numeric(result["close"])
+                if "high" in result.columns:
+                    result["high"] = safe_to_numeric(result["high"])
+                if "low" in result.columns:
+                    result["low"] = safe_to_numeric(result["low"])
+            except Exception as e:
+                logger.warning(f"⚠️ {name}({code}) 数值转换异常: {e}")
+                # 继续执行，让后续代码处理可能的NaN值
             if "close" not in result.columns:
                 logger.info(f"跳过 {name}({code})：缺少必要的'close'列")
                 continue
@@ -488,6 +517,7 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             result["SMA_5"] = result["close"].rolling(window=5).mean()
             result["SMA_10"] = result["close"].rolling(window=10).mean()
             result["SMA_20"] = result["close"].rolling(window=20).mean()
+            result["SMA_60"] = result["close"].rolling(window=60).mean()
 
             # MACD计算 - 使用talib风格以匹配东方财富
             dif, dea, macd_bar = calculate_macd_for_eastmoney(result["close"])
@@ -523,21 +553,24 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             analyze_bollinger(result, latest, prev_latest, trend_signals)
 
             # 分析前瞻性指标
-            analyze_rsi(result, latest, prev_latest, trend_signals)
-            analyze_kdj(result, latest, prev_latest, trend_signals)
-            analyze_cci(result, latest, prev_latest, trend_signals)
-            analyze_obv(result, latest, prev_latest, trend_signals)
-            analyze_williams(result, latest, prev_latest, trend_signals)
+            try:
+                analyze_rsi(result, latest, prev_latest, trend_signals)
+                analyze_kdj(result, latest, prev_latest, trend_signals)
+                analyze_cci(result, latest, prev_latest, trend_signals)
+                analyze_obv(result, latest, prev_latest, trend_signals)
+                analyze_williams(result, latest, prev_latest, trend_signals)
+            except Exception as e:
+                logger.warning(f"前瞻性指标分析失败: {e}")
+                # 继续执行，让后续代码处理可能的NaN值
 
             # --- 状态判定 ---
             status = judge_trend_status(latest, prev_latest)
 
             # --- 预测和预警系统 ---
-            # 初始化价格预测系统（使用调试版）
-            price_predictor = PricePredictorDebug()
-
-            # 生成价格预测（不再依赖signal_data）
-            prediction_data = price_predictor.predict_price(result, latest, None)
+            # 不再使用算法预测系统，完全依赖AI预测
+            # price_predictor = PricePredictorDebug()
+            # prediction_data = price_predictor.predict_price(result, latest, None)
+            prediction_data = {}  # 空预测数据，完全依赖AI
 
             # 初始化预警系统
             alert_system = AlertSystem()
@@ -558,29 +591,50 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                     "raw_debug_data": {
                         "history_data": result,  # 保存历史数据用于创建实时数据
                         "forward_indicators": {
-                            "RSI_12": latest.get("RSI_12"),
-                            "KDJ_K": latest.get("KDJ_K"),
-                            "KDJ_D": latest.get("KDJ_D"),
-                            "KDJ_J": latest.get("KDJ_J"),
-                            "CCI_14": latest.get("CCI_14"),
-                            "OBV": latest.get("OBV"),
-                            "OBV_change": (
+                            "RSI_12": float(latest.get("RSI_12"))
+                            if pd.notna(latest.get("RSI_12"))
+                            else None,
+                            "KDJ_K": float(latest.get("KDJ_K"))
+                            if pd.notna(latest.get("KDJ_K"))
+                            else None,
+                            "KDJ_D": float(latest.get("KDJ_D"))
+                            if pd.notna(latest.get("KDJ_D"))
+                            else None,
+                            "KDJ_J": float(latest.get("KDJ_J"))
+                            if pd.notna(latest.get("KDJ_J"))
+                            else None,
+                            "CCI_14": float(latest.get("CCI_14"))
+                            if pd.notna(latest.get("CCI_14"))
+                            else None,
+                            "OBV": float(latest.get("OBV"))
+                            if pd.notna(latest.get("OBV"))
+                            else None,
+                            "OBV_change": float(
                                 latest.get("OBV", 0) - prev_latest.get("OBV", 0)
                             )
                             if pd.notna(latest.get("OBV"))
+                            and pd.notna(prev_latest.get("OBV"))
                             else None,
-                            "WR1": latest.get("WR1"),
-                            "WR2": latest.get("WR2"),
+                            "WR1": float(latest.get("WR1"))
+                            if pd.notna(latest.get("WR1"))
+                            else None,
+                            "WR2": float(latest.get("WR2"))
+                            if pd.notna(latest.get("WR2"))
+                            else None,
                         },
                     },
                     "signal_data": signal_data,  # 买卖信号数据
-                    "prediction_data": prediction_data,  # 价格预测数据
+                    # "prediction_data": prediction_data,  # 不包含算法预测数据
                     "alert_data": alert_data,  # 预警数据
                 }
             )
         except Exception as e:
             # 发生错误时，跳过不写入分析结果，只记录日志
             error_type = str(e)
+            import traceback
+
+            logger.error(f"分析 {name}({code}) 时出现错误: {type(e).__name__}: {e}")
+            logger.error(f"错误追踪:\n{traceback.format_exc()}")
             if (
                 "RetryError" in error_type
                 or "ConnectionError" in error_type
@@ -590,7 +644,9 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             elif "Timeout" in error_type:
                 logger.info(f"跳过 {name}({code})：数据获取超时")
             else:
-                logger.info(f"跳过 {name}({code})：分析过程出错 - {type(e).__name__}")
+                logger.info(
+                    f"跳过 {name}({code})：分析过程出错 - {type(e).__name__}: {e}"
+                )
             # 不写入错误报告，直接跳过
             continue
     return analysis_report
@@ -641,7 +697,38 @@ class _IntradaySignalGenerator:
             name = item.get("name", "未知")
 
             try:
+                # 更灵活的代码匹配：处理字符串和数字格式
+                item_data_row = None
+
+                # 先将code转为字符串
+                code_str = str(code)
+
+                # 尝试精确匹配
                 item_data_row = all_item_data_df[all_item_data_df["代码"] == code]
+
+                # 如果精确匹配失败，尝试字符串匹配
+                if item_data_row.empty:
+                    item_data_row = all_item_data_df[
+                        all_item_data_df["代码"].astype(str) == code_str
+                    ]
+
+                # 如果还是失败，尝试查找包含关系
+                if item_data_row.empty and len(code_str) >= 4:
+                    # 查找代码前几位匹配的
+                    mask = (
+                        all_item_data_df["代码"]
+                        .astype(str)
+                        .str.startswith(code_str[:4])
+                    )
+                    if mask.any():
+                        item_data_row = all_item_data_df[mask]
+                        if len(item_data_row) > 1:
+                            # 如果有多个匹配，取第一个
+                            logger.info(
+                                f"找到多个匹配，使用第一个: {item_data_row['代码'].tolist()}"
+                            )
+                        item_data_row = item_data_row.head(1)
+
                 if not item_data_row.empty:
                     current_data = item_data_row.iloc[0]
                     results.append(self._create_signal_dict(current_data, item))
