@@ -345,10 +345,13 @@ def calculate_forward_indicators(df):
         rs = gain / loss
         df["RSI_14"] = 100 - (100 / (1 + rs))
 
-        # 计算KDJ指标
-        low_min = df["close"].rolling(window=9).min()
-        high_max = df["close"].rolling(window=9).max()
+        # 计算KDJ指标 (9,3,3) - 匹配东方财富标准
+        # 使用最高价和最低价计算RSV，而不是收盘价
+        low_min = df.get("low", df["close"]).rolling(window=9).min()
+        high_max = df.get("high", df["close"]).rolling(window=9).max()
         rsv = (df["close"] - low_min) / (high_max - low_min) * 100
+
+        # 使用指数移动平均匹配东方财富KDJ（com=2对应约3日EMA）
         df["KDJ_K"] = rsv.ewm(com=2, adjust=False).mean()
         df["KDJ_D"] = df["KDJ_K"].ewm(com=2, adjust=False).mean()
         df["KDJ_J"] = 3 * df["KDJ_K"] - 2 * df["KDJ_D"]
@@ -608,7 +611,6 @@ def analyze_obv(result, latest, prev_latest, trend_signals):
         trend_signals.append(f"OBV分析异常：{e}，跳过分析。")
 
 
-
 def analyze_williams(result, latest, prev_latest, trend_signals):
     """
     威廉指标（WR）分析 - 超买超卖领先指标
@@ -633,37 +635,25 @@ def analyze_williams(result, latest, prev_latest, trend_signals):
 
             # 趋势强弱分析（以50为中轴线）
             if wr1 > 50 and wr2 > 50:
-                trend_signals.append(
-                    "WR指标双线均高于50，处于强势回升区间。"
-                )
+                trend_signals.append("WR指标双线均高于50，处于强势回升区间。")
             elif wr1 < 50 and wr2 < 50:
-                trend_signals.append(
-                    "WR指标双线均低于50，处于弱势调整区间。"
-                )
+                trend_signals.append("WR指标双线均低于50，处于弱势调整区间。")
 
             # WR2穿越50判断（短线信号）
             if pd.notna(wr2_prev):
                 if wr2 > 50 and wr2_prev <= 50:
-                    trend_signals.append(
-                        "WR2突破50，进入弱势区域，短线走弱。"
-                    )
+                    trend_signals.append("WR2突破50，进入弱势区域，短线走弱。")
                 elif wr2 < 50 and wr2_prev >= 50:
-                    trend_signals.append(
-                        "WR2跌破50，进入强势区域，短线走强。"
-                    )
+                    trend_signals.append("WR2跌破50，进入强势区域，短线走强。")
 
             # 买卖信号
             if pd.notna(wr1_prev) and pd.notna(wr2_prev):
                 # WR1反复在80上方震荡后跌破80（底部反转）
                 if wr1 < 80 and wr1_prev > 80:
-                    trend_signals.append(
-                        "WR1从超卖区间跌破80，可能形成底部反弹信号。"
-                    )
+                    trend_signals.append("WR1从超卖区间跌破80，可能形成底部反弹信号。")
                 # WR2反复在20下方震荡后突破20（顶部反转）
                 if wr2 > 20 and wr2_prev < 20:
-                    trend_signals.append(
-                        "WR2从超买区间突破20，可能形成顶部回落信号。"
-                    )
+                    trend_signals.append("WR2从超买区间突破20，可能形成顶部回落信号。")
         else:
             trend_signals.append("WR指标数据缺失，无法分析。")
 
@@ -720,8 +710,8 @@ def calculate_minute_indicators(minute_df, period="60"):
             high_9 = minute_df["high"].rolling(window=9).max()
             rsv = (minute_df["close"] - low_9) / (high_9 - low_9) * 100
 
-            minute_df["KDJ_K"] = rsv.ewm(com=2).mean()
-            minute_df["KDJ_D"] = minute_df["KDJ_K"].ewm(com=2).mean()
+            minute_df["KDJ_K"] = rsv.ewm(com=2, adjust=False).mean()
+            minute_df["KDJ_D"] = minute_df["KDJ_K"].ewm(com=2, adjust=False).mean()
             minute_df["KDJ_J"] = 3 * minute_df["KDJ_K"] - 2 * minute_df["KDJ_D"]
 
         # CCI（14周期）
@@ -795,19 +785,19 @@ def calculate_minute_support_resistance(minute_30_df, minute_60_df, current_pric
             bb_lower_30 = recent_30.iloc[-1].get("BBL_10_2.0")
 
             # ATR
-            atr_30 = None
+            atr_30_val = None
             if "ATR_14" in recent_30.columns:
-                atr_30 = recent_30["ATR_14"].iloc[-1]
-                result["atr_30"] = atr_30
+                atr_30_val = recent_30["ATR_14"].iloc[-1]
+                result["atr_30"] = atr_30_val
 
             # 支撑位
             support_levels_30 = []
             support_levels_30.append(low_30)  # 近期低点
             if pd.notna(bb_lower_30) and bb_lower_30 < current_price:
                 support_levels_30.append(bb_lower_30)
-            if pd.notna(atr_30):
-                support_levels_30.append(current_price - atr_30 * 1.5)
-                support_levels_30.append(current_price - atr_30 * 3)
+            if atr_30_val is not None and pd.notna(atr_30_val):
+                support_levels_30.append(current_price - atr_30_val * 1.5)
+                support_levels_30.append(current_price - atr_30_val * 3)
 
             # 去重并排序
             support_levels_30 = sorted(
@@ -820,9 +810,9 @@ def calculate_minute_support_resistance(minute_30_df, minute_60_df, current_pric
             resistance_levels_30.append(high_30)  # 近期高点
             if pd.notna(bb_upper_30) and bb_upper_30 > current_price:
                 resistance_levels_30.append(bb_upper_30)
-            if pd.notna(atr_30):
-                resistance_levels_30.append(current_price + atr_30 * 1.5)
-                resistance_levels_30.append(current_price + atr_30 * 3)
+            if atr_30_val is not None and pd.notna(atr_30_val):
+                resistance_levels_30.append(current_price + atr_30_val * 1.5)
+                resistance_levels_30.append(current_price + atr_30_val * 3)
 
             # 去重并排序
             resistance_levels_30 = sorted(
@@ -850,19 +840,19 @@ def calculate_minute_support_resistance(minute_30_df, minute_60_df, current_pric
             bb_lower_60 = recent_60.iloc[-1].get("BBL_10_2.0")
 
             # ATR
-            atr_60 = None
+            atr_60_val = None
             if "ATR_14" in recent_60.columns:
-                atr_60 = recent_60["ATR_14"].iloc[-1]
-                result["atr_60"] = atr_60
+                atr_60_val = recent_60["ATR_14"].iloc[-1]
+                result["atr_60"] = atr_60_val
 
             # 支撑位
             support_levels_60 = []
             support_levels_60.append(low_60)  # 近期低点
             if pd.notna(bb_lower_60) and bb_lower_60 < current_price:
                 support_levels_60.append(bb_lower_60)
-            if pd.notna(atr_60):
-                support_levels_60.append(current_price - atr_60 * 1.5)
-                support_levels_60.append(current_price - atr_60 * 3)
+            if atr_60_val is not None and pd.notna(atr_60_val):
+                support_levels_60.append(current_price - atr_60_val * 1.5)
+                support_levels_60.append(current_price - atr_60_val * 3)
 
             # 去重并排序
             support_levels_60 = sorted(
@@ -875,9 +865,9 @@ def calculate_minute_support_resistance(minute_30_df, minute_60_df, current_pric
             resistance_levels_60.append(high_60)  # 近期高点
             if pd.notna(bb_upper_60) and bb_upper_60 > current_price:
                 resistance_levels_60.append(bb_upper_60)
-            if pd.notna(atr_60):
-                resistance_levels_60.append(current_price + atr_60 * 1.5)
-                resistance_levels_60.append(current_price + atr_60 * 3)
+            if atr_60_val is not None and pd.notna(atr_60_val):
+                resistance_levels_60.append(current_price + atr_60_val * 1.5)
+                resistance_levels_60.append(current_price + atr_60_val * 3)
 
             # 去重并排序
             resistance_levels_60 = sorted(
