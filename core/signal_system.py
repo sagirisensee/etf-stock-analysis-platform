@@ -264,7 +264,7 @@ class SignalSystem:
     def _evaluate_rsi(self, latest, prev_latest):
         """评估RSI指标"""
         try:
-            rsi = latest.get("RSI_14")
+            rsi = latest.get("RSI_12")
             if pd.isna(rsi):
                 return None
 

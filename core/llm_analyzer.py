@@ -93,7 +93,7 @@ async def get_llm_score_and_analysis(
     # 添加前瞻性指标数据
     if forward_indicators_data:
         combined_data["前瞻性技术指标"] = {
-            "RSI": forward_indicators_data.get("RSI_14"),
+            "RSI12": forward_indicators_data.get("RSI_12"),
             "KDJ": f"K={forward_indicators_data.get('KDJ_K'):.1f}, D={forward_indicators_data.get('KDJ_D'):.1f}, J={forward_indicators_data.get('KDJ_J'):.1f}"
             if pd.notna(forward_indicators_data.get("KDJ_K"))
             else None,
@@ -115,7 +115,7 @@ async def get_llm_score_and_analysis(
     if minute_30_data is not None and not minute_30_data.empty:
         latest_30 = minute_30_data.iloc[-1]
         minute_data["30分钟线"] = {
-            "RSI": latest_30.get("RSI_14"),
+            "RSI12": latest_30.get("RSI_12"),
             "KDJ": f"K={latest_30.get('KDJ_K'):.1f}, D={latest_30.get('KDJ_D'):.1f}, J={latest_30.get('KDJ_J'):.1f}"
             if pd.notna(latest_30.get("KDJ_K"))
             else None,
@@ -128,7 +128,7 @@ async def get_llm_score_and_analysis(
     if minute_60_data is not None and not minute_60_data.empty:
         latest_60 = minute_60_data.iloc[-1]
         minute_data["60分钟线"] = {
-            "RSI": latest_60.get("RSI_14"),
+            "RSI12": latest_60.get("RSI_12"),
             "KDJ": f"K={latest_60.get('KDJ_K'):.1f}, D={latest_60.get('KDJ_D'):.1f}, J={latest_60.get('KDJ_J'):.1f}"
             if pd.notna(latest_60.get("KDJ_K"))
             else None,
@@ -249,8 +249,8 @@ async def get_llm_score_and_analysis(
 
         combined_data["技术指标数据"] = {
             "当前价格": current_price,
-            "RSI": float(forward_indicators_data.get("RSI_14", 0))
-            if pd.notna(forward_indicators_data.get("RSI_14"))
+            "RSI12": float(forward_indicators_data.get("RSI_12", 0))
+            if pd.notna(forward_indicators_data.get("RSI_12"))
             else None,
             "KDJ": f"K={forward_indicators_data.get('KDJ_K', 0):.1f}, D={forward_indicators_data.get('KDJ_D', 0):.1f}, J={forward_indicators_data.get('KDJ_J', 0):.1f}"
             if pd.notna(forward_indicators_data.get("KDJ_K"))
@@ -306,7 +306,7 @@ async def get_llm_score_and_analysis(
         "分析内容包括：\n"
         "1. **概览**：投资标的名称、代码、当前价格。\n"
         "2. **技术指标分析**（权重100%）：\n"
-        "   - **日线指标**：RSI(14)、KDJ(K/D/J)、CCI(14)、威廉指标、OBV\n"
+        "   - **日线指标**：RSI12、KDJ(K/D/J)、CCI(14)、威廉指标、OBV\n"
         "   - **分钟线指标**（如果提供）：30分钟/60分钟线的RSI、KDJ、MACD、布林带\n"
         "   - **均线系统**：SMA_5、SMA_10、SMA_20的位置关系\n"
         "3. **支撑阻力位分析**：\n"

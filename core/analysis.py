@@ -26,6 +26,7 @@ from .indicators import calculate_minute_indicators
 from .indicators import calculate_minute_support_resistance
 from .indicators import calculate_entry_signals
 from .indicators import judge_trend_status
+from .indicators import calculate_macd_for_eastmoney
 from .signal_system import SignalSystem
 from .predictor import PricePredictor, PricePredictorDebug
 from .alert_system import AlertSystem
@@ -488,12 +489,11 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             result["SMA_10"] = result["close"].rolling(window=10).mean()
             result["SMA_20"] = result["close"].rolling(window=20).mean()
 
-            # 简化的MACD计算
-            exp1 = result["close"].ewm(span=12).mean()
-            exp2 = result["close"].ewm(span=26).mean()
-            result["MACD_12_26_9"] = exp1 - exp2
-            result["MACDs_12_26_9"] = result["MACD_12_26_9"].ewm(span=9).mean()
-            result["MACDh_12_26_9"] = result["MACD_12_26_9"] - result["MACDs_12_26_9"]
+            # MACD计算 - 使用talib风格以匹配东方财富
+            dif, dea, macd_bar = calculate_macd_for_eastmoney(result["close"])
+            result["MACD_12_26_9"] = dif  # DIF
+            result["MACDs_12_26_9"] = dea  # DEA (信号线)
+            result["MACDh_12_26_9"] = macd_bar  # MACD柱（已×2）
 
             # 简化的布林带计算
             result["BBM_20_2.0"] = result["close"].rolling(window=20).mean()
@@ -558,7 +558,7 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                     "raw_debug_data": {
                         "history_data": result,  # 保存历史数据用于创建实时数据
                         "forward_indicators": {
-                            "RSI_14": latest.get("RSI_14"),
+                            "RSI_12": latest.get("RSI_12"),
                             "KDJ_K": latest.get("KDJ_K"),
                             "KDJ_D": latest.get("KDJ_D"),
                             "KDJ_J": latest.get("KDJ_J"),

@@ -286,7 +286,7 @@ class PricePredictor:
                     sideways_score += 15
 
             # 4. RSI指标（权重10%）
-            rsi = latest.get("RSI_14")
+            rsi = latest.get("RSI_12")
             if pd.notna(rsi):
                 if rsi < 40:
                     up_score += 10
@@ -797,7 +797,7 @@ class PricePredictorDebug(PricePredictor):
                     debug_info["momentum"]["result"] = "横盘+15（动能中性）"
 
             debug_info["rsi_analysis"] = {}
-            rsi = latest.get("RSI_14")
+            rsi = latest.get("RSI_12")
             if rsi is not None:
                 debug_info["rsi_analysis"]["rsi_value"] = float(rsi)
                 if rsi < 40:
@@ -1264,7 +1264,7 @@ class PricePredictorDebug(PricePredictor):
                     debug_info["momentum"]["result"] = "横盘+15（动能中性）"
 
             debug_info["rsi_analysis"] = {}
-            rsi = latest.get("RSI_14")
+            rsi = latest.get("RSI_12")
             if rsi is not None:
                 debug_info["rsi_analysis"]["rsi_value"] = float(rsi)
                 if rsi < 40:

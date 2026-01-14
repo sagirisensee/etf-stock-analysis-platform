@@ -187,7 +187,7 @@ class AlertSystem:
 
         try:
             # RSI超买超卖
-            rsi = latest.get("RSI_14")
+            rsi = latest.get("RSI_12")
             if pd.notna(rsi):
                 if rsi >= 80:
                     alerts.append(
@@ -326,9 +326,9 @@ class AlertSystem:
                 return alerts
 
             # 检查RSI背离
-            if "RSI_14" in historical_data.columns:
+            if "RSI_12" in historical_data.columns:
                 recent_close = historical_data["close"].iloc[-10:].tolist()
-                recent_rsi = historical_data["RSI_14"].iloc[-10:].tolist()
+                recent_rsi = historical_data["RSI_12"].iloc[-10:].tolist()
 
                 # 顶背离
                 if len(recent_close) >= 3 and len(recent_rsi) >= 3:

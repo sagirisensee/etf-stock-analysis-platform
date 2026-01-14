@@ -1,4 +1,57 @@
 import pandas as pd
+import numpy as np
+
+
+def calculate_ema_talib_style(series, period):
+    """
+    计算EMA - 使用talib风格算法（匹配东方财富）
+    talib风格：使用第一个值为初始值，然后递归计算
+    """
+    # alpha = 2 / (period + 1)
+    alpha = 2.0 / (period + 1.0)
+
+    ema = series.copy()
+
+    # 使用第一个有效值作为初始值
+    first_valid_idx = series.first_valid_index()
+    if first_valid_idx is None:
+        return pd.Series([np.nan] * len(series), index=series.index)
+
+    # 初始值 = 第一个有效值
+    ema.iloc[first_valid_idx] = series.iloc[first_valid_idx]
+
+    # 递归计算后续值
+    for i in range(first_valid_idx + 1, len(series)):
+        if pd.isna(series.iloc[i]):
+            ema.iloc[i] = ema.iloc[i - 1]  # 保持前值
+        else:
+            ema.iloc[i] = alpha * series.iloc[i] + (1 - alpha) * ema.iloc[i - 1]
+
+    return ema
+
+
+def calculate_macd_for_eastmoney(
+    close, fast_period=12, slow_period=26, signal_period=9
+):
+    """
+    计算MACD以匹配东方财富
+    使用talib风格EMA计算，MACD柱乘以2
+    返回: DIF, DEA, MACD柱（已×2）
+    """
+    # 1. 计算快速EMA(12)和慢速EMA(26)
+    ema_fast = calculate_ema_talib_style(close, fast_period)
+    ema_slow = calculate_ema_talib_style(close, slow_period)
+
+    # 2. DIF = EMA(12) - EMA(26)
+    dif = ema_fast - ema_slow
+
+    # 3. DEA = EMA(DIF, 9)  # 信号线
+    dea = calculate_ema_talib_style(dif, signal_period)
+
+    # 4. MACD柱 = (DIF - DEA) × 2  # 东方财富显示的是乘以2的
+    macd_bar = (dif - dea) * 2
+
+    return dif, dea, macd_bar
 
 
 def _get_trend_description(length):
@@ -338,12 +391,12 @@ def calculate_forward_indicators(df):
     计算所有前瞻性技术指标
     """
     try:
-        # 计算RSI（14日相对强弱指标）
+        # 计算RSI（12日相对强弱指标）- 使用东方财富标准RSI12
         delta = df["close"].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        gain = (delta.where(delta > 0, 0)).ewm(alpha=1 / 12, adjust=False).mean()
+        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1 / 12, adjust=False).mean()
         rs = gain / loss
-        df["RSI_14"] = 100 - (100 / (1 + rs))
+        df["RSI_12"] = 100 - (100 / (1 + rs))
 
         # 计算KDJ指标 (9,3,3) - 匹配东方财富标准
         # 使用最高价和最低价计算RSV，而不是收盘价
@@ -364,13 +417,19 @@ def calculate_forward_indicators(df):
         mad = tp.rolling(window=14).apply(lambda x: abs(x - x.mean()).mean())
         df["CCI_14"] = (tp - ma_tp) / (0.015 * mad)
 
-        # 计算OBV（能量潮）- 需要成交量数据
+        # 计算OBV（能量潮）- 需要成交量数据，使用标准公式
         if "volume" in df.columns or "成交量" in df.columns:
             vol_col = "volume" if "volume" in df.columns else "成交量"
-            df["OBV"] = (
-                df["close"].diff().apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
-                * df[vol_col]
-            ).cumsum()
+
+            # 更高效的OBV计算
+            price_diff = df["close"].diff()
+            obv_direction = np.sign(price_diff)
+            obv_direction[0] = 0  # 第一天的diff为NaN，设为0
+            df["OBV"] = (obv_direction * df[vol_col]).cumsum()
+
+            # 注意：OBV的绝对值因基准不同而不同
+            # 东方财富从上市日开始计算，数值较大
+            # 我们只关注OBV的相对变化和趋势
         else:
             df["OBV"] = None
 
@@ -401,38 +460,39 @@ def calculate_forward_indicators(df):
 def analyze_rsi(result, latest, prev_latest, trend_signals):
     """
     RSI（相对强弱指标）分析 - 领先指标，提前识别超买超卖
+    使用东方财富标准RSI12（12日周期）
     """
     try:
-        rsi_14 = latest.get("RSI_14")
-        prev_rsi = prev_latest.get("RSI_14")
+        rsi_12 = latest.get("RSI_12")
+        prev_rsi = prev_latest.get("RSI_12")
 
-        if pd.notna(rsi_14):
-            # RSI超买超卖判断
-            if rsi_14 > 80:
+        if pd.notna(rsi_12):
+            # RSI超买超卖判断（RSI12标准）
+            if rsi_12 > 80:
                 trend_signals.append(
-                    f"RSI({rsi_14:.1f})严重超买，警惕大幅回调风险（前瞻性预警）。"
+                    f"RSI12({rsi_12:.1f})严重超买，警惕大幅回调风险（前瞻性预警）。"
                 )
-            elif rsi_14 > 70:
+            elif rsi_12 > 70:
                 trend_signals.append(
-                    f"RSI({rsi_14:.1f})进入超买区域，短期可能回调（前瞻性预警）。"
+                    f"RSI12({rsi_12:.1f})进入超买区域，短期可能回调（前瞻性预警）。"
                 )
-            elif rsi_14 < 20:
+            elif rsi_12 < 20:
                 trend_signals.append(
-                    f"RSI({rsi_14:.1f})严重超卖，关注反弹机会（前瞻性预警）。"
+                    f"RSI12({rsi_12:.1f})严重超卖，关注反弹机会（前瞻性预警）。"
                 )
-            elif rsi_14 < 30:
+            elif rsi_12 < 30:
                 trend_signals.append(
-                    f"RSI({rsi_14:.1f})进入超卖区域，短期可能反弹（前瞻性预警）。"
+                    f"RSI12({rsi_12:.1f})进入超卖区域，短期可能反弹（前瞻性预警）。"
                 )
-            elif rsi_14 > 50:
-                trend_signals.append(f"RSI({rsi_14:.1f})在50上方，多头力量占优。")
+            elif rsi_12 > 50:
+                trend_signals.append(f"RSI12({rsi_12:.1f})在50上方，多头力量占优。")
             else:
-                trend_signals.append(f"RSI({rsi_14:.1f})在50下方，空头力量占优。")
+                trend_signals.append(f"RSI12({rsi_12:.1f})在50下方，空头力量占优。")
 
             # RSI背离判断（价格新高但RSI未创新高）
             if pd.notna(prev_rsi) and len(result) >= 5:
                 recent_close = result["close"].iloc[-5:].tolist()
-                recent_rsi = result["RSI_14"].iloc[-5:].tolist()
+                recent_rsi = result["RSI_12"].iloc[-5:].tolist()
 
                 # 顶背离判断：价格新高但RSI未创新高
                 if recent_close[-1] > max(recent_close[:-1]) and recent_rsi[-1] < max(
@@ -570,6 +630,7 @@ def analyze_cci(result, latest, prev_latest, trend_signals):
 def analyze_obv(result, latest, prev_latest, trend_signals):
     """
     OBV（能量潮）分析 - 资金流向指标（替代直接资金数据）
+    注意：OBV绝对值因基准不同而不同，关注相对变化和趋势
     """
     try:
         obv = latest.get("OBV")
@@ -697,12 +758,12 @@ def calculate_minute_indicators(minute_df, period="60"):
         minute_df["BBU_10_2.0"] = minute_df["BBM_10_2.0"] + (std_10 * 2)
         minute_df["BBL_10_2.0"] = minute_df["BBM_10_2.0"] - (std_10 * 2)
 
-        # RSI（14周期）
+        # RSI（12周期） - 使用EMA匹配东方财富标准RSI12
         delta = minute_df["close"].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        gain = (delta.where(delta > 0, 0)).ewm(alpha=1 / 12, adjust=False).mean()
+        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1 / 12, adjust=False).mean()
         rs = gain / loss
-        minute_df["RSI_14"] = 100 - (100 / (1 + rs))
+        minute_df["RSI_12"] = 100 - (100 / (1 + rs))
 
         # KDJ指标 (9, 3, 3)
         if "high" in minute_df.columns and "low" in minute_df.columns:
@@ -922,7 +983,7 @@ def calculate_entry_signals(
             and len(minute_30_df) >= 2
         ):
             latest_30 = minute_30_df.iloc[-1]
-            rsi_30 = latest_30.get("RSI_14")
+            rsi_30 = latest_30.get("RSI_12")
             kdj_k_30 = latest_30.get("KDJ_K")
             macd_30 = latest_30.get("MACD_5_10_5")
 
@@ -937,7 +998,7 @@ def calculate_entry_signals(
             and len(minute_60_df) >= 2
         ):
             latest_60 = minute_60_df.iloc[-1]
-            rsi_60 = latest_60.get("RSI_14")
+            rsi_60 = latest_60.get("RSI_12")
             kdj_k_60 = latest_60.get("KDJ_K")
             macd_60 = latest_60.get("MACD_5_10_5")
 
