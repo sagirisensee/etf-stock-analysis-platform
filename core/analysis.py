@@ -208,20 +208,7 @@ async def generate_ai_driven_report(
                 if not daily_trend_status:
                     daily_trend_status = "🟡 数据状态未知"
 
-                # 如果数据不足，跳过不写入分析结果
-                if any(
-                    keyword in daily_trend_status
-                    for keyword in [
-                        "数据不足",
-                        "数据缺失",
-                        "数据状态未知",
-                        "数据获取失败",
-                        "分析失败",
-                        "数据源暂时不可用",
-                    ]
-                ):
-                    logger.info(f"跳过 {name}({code})：数据不足，不写入分析结果")
-                    continue
+                # 不跳过数据不足的情况，传递给LLM分析时会标记数据不足状态
 
                 # 检查实时数据是否有效
                 price = signal.get("price")
@@ -444,15 +431,31 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 continue
 
             # 历史数据获取结果检查
-            if result is None:
-                logger.info(f"跳过 {name}({code})：历史数据返回None")
+            data_insufficient = False
+            if result is None or result.empty:
+                logger.info(f"⚠️ {name}({code})：历史数据不足，标记为数据不足")
+                data_insufficient = True
+                # 创建空的数据框，但添加基本状态信息
+                analysis_report.append(
+                    {
+                        **item_info,
+                        "status": "🟡 历史数据不足（仅{}天）".format(
+                            len(result) if not result.empty else 0
+                        ),
+                        "technical_indicators_summary": [
+                            "历史数据不足，无法计算完整技术指标"
+                        ],
+                        "raw_debug_data": {
+                            "history_data": result
+                            if not result.empty
+                            else pd.DataFrame(),
+                            "forward_indicators": {},
+                        },
+                        "signal_data": {},
+                        "alert_data": {},
+                    }
+                )
                 continue
-            elif result.empty:
-                logger.info(f"跳过 {name}({code})：历史数据为空")
-                continue
-            else:
-                # 数据获取成功
-                pass
 
             # 字段标准化
             if "收盘" in result.columns:
@@ -501,16 +504,45 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             except Exception as e:
                 logger.warning(f"⚠️ {name}({code}) 数值转换异常: {e}")
                 # 继续执行，让后续代码处理可能的NaN值
+
+            # 检查是否有必要的close列
             if "close" not in result.columns:
-                logger.info(f"跳过 {name}({code})：缺少必要的'close'列")
-                continue
-            if len(result) < 61:
-                logger.info(
-                    f"跳过 {name}({code})：历史数据不足61天（实际{len(result)}天）"
+                logger.info(f"⚠️ {name}({code})：缺少必要的'close'列，标记为数据不足")
+                analysis_report.append(
+                    {
+                        **item_info,
+                        "status": "🟡 数据格式异常（缺少close列）",
+                        "technical_indicators_summary": [
+                            "数据格式异常，无法进行技术分析"
+                        ],
+                        "raw_debug_data": {
+                            "history_data": result,
+                            "forward_indicators": {},
+                        },
+                        "signal_data": {},
+                        "alert_data": {},
+                    }
                 )
                 continue
+
+            # 检查close列是否全为空
             if result["close"].isnull().all():
-                logger.info(f"跳过 {name}({code})：'close'列数据全为空值")
+                logger.info(f"⚠️ {name}({code})：'close'列数据全为空值，标记为数据不足")
+                analysis_report.append(
+                    {
+                        **item_info,
+                        "status": "🟡 数据异常（close值为空）",
+                        "technical_indicators_summary": [
+                            "收盘价数据为空，无法进行技术分析"
+                        ],
+                        "raw_debug_data": {
+                            "history_data": result,
+                            "forward_indicators": {},
+                        },
+                        "signal_data": {},
+                        "alert_data": {},
+                    }
+                )
                 continue
 
             # 使用pandas内置功能计算技术指标
@@ -564,7 +596,15 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 # 继续执行，让后续代码处理可能的NaN值
 
             # --- 状态判定 ---
-            status = judge_trend_status(latest, prev_latest)
+            # 检查数据是否充足，如果不足61天则标记为数据不足
+            if len(result) < 61:
+                status = f"🟡 历史数据不足（仅{len(result)}天）"
+                # 在技术指标总结中添加提示
+                trend_signals.insert(
+                    0, f"⚠️ 历史数据仅{len(result)}天，部分指标可能不准确"
+                )
+            else:
+                status = judge_trend_status(latest, prev_latest)
 
             # --- 预测和预警系统 ---
             # 不再使用算法预测系统，完全依赖AI预测
