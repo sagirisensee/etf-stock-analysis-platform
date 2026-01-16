@@ -670,7 +670,7 @@
                 ` : ''}
                 ${kdj_k !== null && kdj_k !== undefined ? `
                     <div class="col-6 mb-2">
-                        <small class="text-muted">KDJ</small>
+                        <small class="text-muted">KDJ (日线)</small>
                         <div class="badge ${kdj_j > 100 ? 'bg-danger' : (kdj_j < 0 ? 'bg-success' : 'bg-light text-dark')}">
                             K:${kdj_k.toFixed(1)} D:${kdj_d.toFixed(1)} J:${kdj_j.toFixed(1)}
                             ${kdj_j > 100 ? '超买' : (kdj_j < 0 ? '超卖' : '正常')}
@@ -744,7 +744,7 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
                     </div>
                 </div>
 
-                ${ai_pred_1d && (ai_pred_1d.trend || ai_pred_1d.target) ? `
+                ${ai_pred_1d ? `
                     <div class="mb-3">
                         <small class="text-muted d-block mb-1">📈 AI 1日预测</small>
                         <div class="d-flex align-items-center">
@@ -761,7 +761,7 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
                     </div>
                 ` : ''}
 
-                ${ai_pred_3d && (ai_pred_3d.trend || ai_pred_3d.target) ? `
+                ${ai_pred_3d ? `
                     <div class="mb-3">
                         <small class="text-muted d-block mb-1">📊 AI 3日预测</small>
                         <div class="d-flex align-items-center">

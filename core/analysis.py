@@ -324,10 +324,20 @@ async def generate_ai_driven_report(
                 ai_pred_3d = ai_result.get("pred_3d", {})
 
                 # 确保AI预测数据包含数值置信度
-                if not ai_pred_1d:
-                    ai_pred_1d = {"trend": "未知", "target": "未知", "confidence": 0}
-                if not ai_pred_3d:
-                    ai_pred_3d = {"trend": "未知", "target": "未知", "confidence": 0}
+                # 只有当AI没有返回任何预测数据时才设置默认值
+                # 如果AI返回了空字典{}，表示AI分析了但没有预测结果，应该保留空字典
+                if ai_pred_1d is None:
+                    ai_pred_1d = {
+                        "trend": "分析中",
+                        "target": "计算中",
+                        "confidence": 50,
+                    }
+                if ai_pred_3d is None:
+                    ai_pred_3d = {
+                        "trend": "分析中",
+                        "target": "计算中",
+                        "confidence": 50,
+                    }
 
                 final_report.append(
                     {

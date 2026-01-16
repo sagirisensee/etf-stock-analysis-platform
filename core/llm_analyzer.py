@@ -90,16 +90,16 @@ async def get_llm_score_and_analysis(
         ),
     }
 
-    # 添加前瞻性指标数据
+    # 添加前瞻性指标数据（日线级别）
     if forward_indicators_data:
-        combined_data["前瞻性技术指标"] = {
-            "RSI12": forward_indicators_data.get("RSI_12"),
-            "KDJ": f"K={forward_indicators_data.get('KDJ_K'):.1f}, D={forward_indicators_data.get('KDJ_D'):.1f}, J={forward_indicators_data.get('KDJ_J'):.1f}"
+        combined_data["日线技术指标（前瞻性）"] = {
+            "RSI12（日线）": forward_indicators_data.get("RSI_12"),
+            "KDJ（日线）": f"K={forward_indicators_data.get('KDJ_K'):.1f}, D={forward_indicators_data.get('KDJ_D'):.1f}, J={forward_indicators_data.get('KDJ_J'):.1f}"
             if pd.notna(forward_indicators_data.get("KDJ_K"))
             else None,
-            "CCI": forward_indicators_data.get("CCI_14"),
-            "威廉指标": forward_indicators_data.get("WR_14"),
-            "OBV": "资金流入"
+            "CCI（日线）": forward_indicators_data.get("CCI_14"),
+            "威廉指标（日线）": forward_indicators_data.get("WR_14"),
+            "OBV（日线）": "资金流入"
             if forward_indicators_data.get("OBV_change", 0) > 0
             else (
                 "资金流出"
@@ -110,36 +110,36 @@ async def get_llm_score_and_analysis(
             else None,
         }
 
-    # 添加分钟线数据（新增）
+    # 添加分钟线数据（新增）- 明确标注时间周期
     minute_data = {}
     if minute_30_data is not None and not minute_30_data.empty:
         latest_30 = minute_30_data.iloc[-1]
-        minute_data["30分钟线"] = {
-            "RSI12": latest_30.get("RSI_12"),
-            "KDJ": f"K={latest_30.get('KDJ_K'):.1f}, D={latest_30.get('KDJ_D'):.1f}, J={latest_30.get('KDJ_J'):.1f}"
+        minute_data["30分钟线指标"] = {
+            "RSI12（30分钟）": latest_30.get("RSI_12"),
+            "KDJ（30分钟）": f"K={latest_30.get('KDJ_K'):.1f}, D={latest_30.get('KDJ_D'):.1f}, J={latest_30.get('KDJ_J'):.1f}"
             if pd.notna(latest_30.get("KDJ_K"))
             else None,
-            "MACD": latest_30.get("MACD_5_10_5"),
-            "布林带": f"上轨:{latest_30.get('BBU_10_2.0'):.2f}, 中轨:{latest_30.get('BBM_10_2.0'):.2f}, 下轨:{latest_30.get('BBL_10_2.0'):.2f}"
+            "MACD（30分钟）": latest_30.get("MACD_5_10_5"),
+            "布林带（30分钟）": f"上轨:{latest_30.get('BBU_10_2.0'):.2f}, 中轨:{latest_30.get('BBM_10_2.0'):.2f}, 下轨:{latest_30.get('BBL_10_2.0'):.2f}"
             if pd.notna(latest_30.get("BBU_10_2.0"))
             else None,
         }
 
     if minute_60_data is not None and not minute_60_data.empty:
         latest_60 = minute_60_data.iloc[-1]
-        minute_data["60分钟线"] = {
-            "RSI12": latest_60.get("RSI_12"),
-            "KDJ": f"K={latest_60.get('KDJ_K'):.1f}, D={latest_60.get('KDJ_D'):.1f}, J={latest_60.get('KDJ_J'):.1f}"
+        minute_data["60分钟线指标"] = {
+            "RSI12（60分钟）": latest_60.get("RSI_12"),
+            "KDJ（60分钟）": f"K={latest_60.get('KDJ_K'):.1f}, D={latest_60.get('KDJ_D'):.1f}, J={latest_60.get('KDJ_J'):.1f}"
             if pd.notna(latest_60.get("KDJ_K"))
             else None,
-            "MACD": latest_60.get("MACD_5_10_5"),
-            "布林带": f"上轨:{latest_60.get('BBU_10_2.0'):.2f}, 中轨:{latest_60.get('BBM_10_2.0'):.2f}, 下轨:{latest_60.get('BBL_10_2.0'):.2f}"
+            "MACD（60分钟）": latest_60.get("MACD_5_10_5"),
+            "布林带（60分钟）": f"上轨:{latest_60.get('BBU_10_2.0'):.2f}, 中轨:{latest_60.get('BBM_10_2.0'):.2f}, 下轨:{latest_60.get('BBL_10_2.0'):.2f}"
             if pd.notna(latest_60.get("BBU_10_2.0"))
             else None,
         }
 
     if minute_data:
-        combined_data["分钟线技术指标"] = minute_data
+        combined_data["分钟线技术指标（短线）"] = minute_data
 
     # 添加支撑阻力位（新增）
     if minute_support_resistance:
@@ -247,21 +247,21 @@ async def get_llm_score_and_analysis(
         # 获取 forward_indicators - 从 daily_trend_data 中
         forward_indicators_data = daily_trend_data.get("forward_indicators", {})
 
-        combined_data["技术指标数据"] = {
+        combined_data["技术指标数据（日线）"] = {
             "当前价格": current_price,
-            "RSI12": float(forward_indicators_data.get("RSI_12", 0))
+            "RSI12（日线）": float(forward_indicators_data.get("RSI_12", 0))
             if pd.notna(forward_indicators_data.get("RSI_12"))
             else None,
-            "KDJ": f"K={forward_indicators_data.get('KDJ_K', 0):.1f}, D={forward_indicators_data.get('KDJ_D', 0):.1f}, J={forward_indicators_data.get('KDJ_J', 0):.1f}"
+            "KDJ（日线）": f"K={forward_indicators_data.get('KDJ_K', 0):.1f}, D={forward_indicators_data.get('KDJ_D', 0):.1f}, J={forward_indicators_data.get('KDJ_J', 0):.1f}"
             if pd.notna(forward_indicators_data.get("KDJ_K"))
             else None,
-            "CCI": forward_indicators_data.get("CCI_14", 0)
+            "CCI（日线）": forward_indicators_data.get("CCI_14", 0)
             if pd.notna(forward_indicators_data.get("CCI_14"))
             else None,
-            "威廉指标": forward_indicators_data.get("WR_14", 0)
+            "威廉指标（日线）": forward_indicators_data.get("WR_14", 0)
             if pd.notna(forward_indicators_data.get("WR_14"))
             else None,
-            "OBV": "资金流入"
+            "OBV（日线）": "资金流入"
             if forward_indicators_data.get("OBV_change", 0) > 0
             else (
                 "资金流出"
@@ -302,31 +302,37 @@ async def get_llm_score_and_analysis(
     # 完全AI驱动 - 所有概率由AI自主计算
     system_prompt = (
         "你是一个专业的量化交易分析师，完全基于技术指标数据进行概率预测和交易决策。\n"
-        "**核心原则**：所有趋势概率（上涨/下跌/横盘）由你自主研判，不依赖任何预计算的数值。\n\n"
+        "**核心原则**：所有趋势概率（上涨/下跌/横盘）由你自主研判，不依赖任何预计算的数值。\n"
+        "**关键要求**：必须严格区分日线指标和分钟线指标的时间周期，避免混淆不同周期的数值。\n\n"
         "分析内容包括：\n"
         "1. **概览**：投资标的名称、代码、当前价格。\n"
         "2. **技术指标分析**（权重100%）：\n"
-        "   - **日线指标**：RSI12、KDJ(K/D/J)、CCI(14)、威廉指标、OBV\n"
-        "   - **分钟线指标**（如果提供）：30分钟/60分钟线的RSI、KDJ、MACD、布林带\n"
+        "   - **日线指标（前瞻性，更可靠）**：RSI12（日线）、KDJ(K/D/J)（日线）、CCI(14)（日线）、威廉指标（日线）、OBV（日线）\n"
+        "   - **分钟线指标（短线，更灵敏）**：30分钟/60分钟线的RSI、KDJ、MACD、布林带\n"
         "   - **均线系统**：SMA_5、SMA_10、SMA_20的位置关系\n"
-        "3. **支撑阻力位分析**：\n"
+        "3. **重要提醒**：\n"
+        "   - **日线KDJ**和**分钟线KDJ**是不同时间周期的指标，数值可能差异很大\n"
+        "   - **日线指标**反映中长期趋势\n"
+        "   - **分钟线指标**反映短期波动\n"
+        "   - 在分析时要明确区分并正确引用对应周期的指标数值\n"
+        "4. **支撑阻力位分析**：\n"
         "   - 当前价格相对支撑位/阻力位的位置\n"
         "   - 判断是否接近关键价位\n"
-        "4. **自主概率计算**（核心任务）：\n"
-        "   - 基于所有技术指标的综合判断\n"
+        "5. **自主概率计算**（核心任务）：\n"
+        "   - 基于所有技术指标的综合判断，重点参考日线指标\n"
         "   - 分别计算：上涨概率、下跌概率、横盘概率\n"
         "   - **必须**：三个概率之和等于100%\n"
-        "   - **依据**：明确说明得出这些概率的指标依据\n"
-        "5. **价格预测**（基于概率）：\n"
+        "   - **依据**：明确说明得出这些概率的具体指标依据，注明是日线还是分钟线指标\n"
+        "6. **价格预测**（基于概率）：\n"
         "   - 1日预测：根据1日趋势判断，给出目标价和置信度\n"
         "   - 3日预测：根据3日预期，给出目标价和置信度\n"
-        "6. **买卖信号**：\n"
-        "   - 强烈买入：上涨概率>60% + 关键超卖信号\n"
+        "7. **买卖信号**：\n"
+        "   - 强烈买入：上涨概率>60% + 关键超卖信号（日线指标为主）\n"
         "   - 买入：上涨概率50-60% + 接近支撑位\n"
         "   - 持有：没有明确方向或横盘概率最高\n"
         "   - 卖出：下跌概率50-60% + 接近阻力位\n"
-        "   - 强烈卖出：下跌概率>60% + 关键超买信号\n"
-        "7. **交易建议**：\n"
+        "   - 强烈卖出：下跌概率>60% + 关键超买信号（日线指标为主）\n"
+        "8. **交易建议**：\n"
         "   - 支撑位：详细列出最重要的2-3个支撑位\n"
         "   - 阻力位：详细列出最重要的2-3个阻力位\n"
         "   - 目标价：基于上涨概率计算的目标价\n"
@@ -344,7 +350,7 @@ async def get_llm_score_and_analysis(
         '  "resistance": "1.62-1.65",\n'
         '  "target": "1.65",\n'
         '  "stop_loss": "1.52",\n'
-        '  "comment": "基于RSI(35)超卖、KDJ金叉、价格接近支撑位1.55，综合判断上涨概率65%。1日目标1.62，3日目标1.65，建议1.55附近买入，止损1.52。指标依据：RSI34处于低位，KDJ-J从负值转为正金叉，价格在布林下轨附近，多头蓄势"\n'
+        '  "comment": "基于日线RSI(72.8)进入超买区、日线KDJ(K=78.5, D=77.2, J=81.1)正常、分钟线KDJ(J=1.1)低位，综合判断上涨概率40%。指标依据：日线RSI超买提示风险，日线KDJ正常但分钟线KDJ低位显示有超跌反弹需求，形成短期矛盾信号。"\n'
         "}\n"
         "\n"
         "字段说明：\n"
@@ -363,8 +369,10 @@ async def get_llm_score_and_analysis(
         "**特别注意**：\n"
         "1. 所有概率由你自主计算，不要使用系统提供的任何概率值\n"
         "2. detailed_probability中的三个数字必须精确到整数或小数点后1位，且总和=100\n"
-        "3. comment中必须说明得出概率的具体指标依据\n"
+        "3. comment中必须说明得出概率的具体指标依据，并明确标注是日线还是分钟线指标\n"
         "4. 预测价格要基于你计算的概率合理推导\n"
+        "5. **严禁混淆日线指标和分钟线指标的数值**\n"
+        "6. 当出现矛盾信号时（如日线KDJ正常但分钟线KDJ低位），要在comment中明确说明这种矛盾\n"
     )
 
     # 重试机制配置
