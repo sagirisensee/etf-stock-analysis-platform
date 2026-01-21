@@ -162,8 +162,15 @@ async def get_llm_score_and_analysis(
             }
             if pd.notna(wr1_value) and pd.notna(wr2_value)
             else "威廉指标数据缺失",
-            "OBV（日线）": obv_direction
-            if obv_direction is not None
+            "OBV（日线）": {
+                "方向": "资金流入"
+                if obv_change and obv_change > 0
+                else ("资金流出" if obv_change and obv_change < 0 else "资金持平"),
+                "数值": obv_value,
+                "变化": obv_change,
+                "状态": "日线",
+            }
+            if pd.notna(obv_value) and pd.notna(obv_change)
             else "OBV数据缺失",
         }
 
@@ -355,8 +362,15 @@ async def get_llm_score_and_analysis(
             }
             if pd.notna(wr1_value_2) and pd.notna(wr2_value_2)
             else "威廉指标数据缺失",
-            "OBV（日线）": obv_direction_2
-            if obv_direction_2 is not None
+            "OBV（日线）": {
+                "方向": "资金流入"
+                if obv_change_2 and obv_change_2 > 0
+                else ("资金流出" if obv_change_2 and obv_change_2 < 0 else "资金持平"),
+                "数值": obv_value_2,
+                "变化": obv_change_2,
+                "状态": "日线",
+            }
+            if pd.notna(obv_value_2) and pd.notna(obv_change_2)
             else "OBV数据缺失",
         }
 

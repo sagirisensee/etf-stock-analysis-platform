@@ -654,19 +654,12 @@ def analyze_obv(result, latest, prev_latest, trend_signals):
                 # 计算OBV变化值，确保与LLM格式化逻辑一致
                 obv_change = obv - prev_obv
 
-                # 添加调试信息
-                debug_info = f"OBV: latest={obv:.0f}, prev={prev_obv:.0f}, change={obv_change:.0f}"
-
                 if obv_change > 0:
-                    trend_signals.append(
-                        f"日线OBV上升，资金流入（价格可能滞后反映，Δ={obv_change:.0f}）。{debug_info}"
-                    )
+                    trend_signals.append(f"日线OBV上升，资金流入（价格可能滞后反映）。")
                 elif obv_change < 0:
-                    trend_signals.append(
-                        f"日线OBV下降，资金流出（价格可能滞后反映，Δ={obv_change:.0f}）。{debug_info}"
-                    )
+                    trend_signals.append(f"日线OBV下降，资金流出（价格可能滞后反映）。")
                 else:
-                    trend_signals.append(f"日线OBV持平，资金流向平衡。{debug_info}")
+                    trend_signals.append("日线OBV持平，资金流向平衡。")
 
             # OBV与价格背离判断
             if pd.notna(prev_obv) and len(result) >= 5:
