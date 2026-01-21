@@ -264,6 +264,7 @@
         const kdj_j = forward_indicators.KDJ_J;
         const cci = forward_indicators.CCI_14;
         const obv = forward_indicators.OBV;
+        const obv_change = forward_indicators.OBV_change;
         const wr1 = forward_indicators.WR1;
         const wr2 = forward_indicators.WR2;
         
@@ -296,12 +297,15 @@
                         </div>
                     </div>
                 ` : ''}
-                ${obv !== null && obv !== undefined ? `
+                ${obv !== null && obv !== undefined && obv_change !== null && obv_change !== undefined ? `
                     <div class="col-6 mb-2">
                         <small class="text-muted">OBV</small>
-                        <div class="badge ${obv > 0 ? 'bg-success' : (obv < 0 ? 'bg-danger' : 'bg-light text-dark')}">
-                            ${obv > 0 ? '资金流入' : (obv < 0 ? '资金流出' : '资金持平')}
+                        <div class="badge ${obv_change > 0 ? 'bg-success' : (obv_change < 0 ? 'bg-danger' : 'bg-light text-dark')}">
+                            ${obv_change > 0 ? '资金流入' : (obv_change < 0 ? '资金流出' : '资金持平')}
                         </div>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                            变化: ${obv_change > 0 ? '+' : ''}${obv_change.toFixed(0)}
+                        </small>
                     </div>
                 ` : ''}
                 ${wr1 !== null && wr1 !== undefined ? `

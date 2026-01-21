@@ -665,6 +665,25 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                             if pd.notna(latest.get("OBV"))
                             and pd.notna(prev_latest.get("OBV"))
                             else None,
+                            "OBV_direction": "流入"
+                            if (
+                                pd.notna(latest.get("OBV"))
+                                and pd.notna(prev_latest.get("OBV"))
+                                and (latest.get("OBV", 0) - prev_latest.get("OBV", 0))
+                                > 0
+                            )
+                            else (
+                                "流出"
+                                if (
+                                    pd.notna(latest.get("OBV"))
+                                    and pd.notna(prev_latest.get("OBV"))
+                                    and (
+                                        latest.get("OBV", 0) - prev_latest.get("OBV", 0)
+                                    )
+                                    < 0
+                                )
+                                else "持平"
+                            ),
                             "OBV_debug": f"latest={latest.get('OBV'):.2f}, prev={prev_latest.get('OBV'):.2f}, change={latest.get('OBV', 0) - prev_latest.get('OBV', 0):.2f}"
                             if pd.notna(latest.get("OBV"))
                             and pd.notna(prev_latest.get("OBV"))
