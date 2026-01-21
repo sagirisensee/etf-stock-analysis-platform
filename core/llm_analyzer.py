@@ -92,22 +92,79 @@ async def get_llm_score_and_analysis(
 
     # 添加前瞻性指标数据（日线级别）
     if forward_indicators_data:
+        # 获取OBV和OBV_change值
+        obv_value = forward_indicators_data.get("OBV")
+        obv_change = forward_indicators_data.get("OBV_change")
+
+        # 判断OBV方向
+        obv_direction = None
+        if pd.notna(obv_value) and pd.notna(obv_change):
+            if obv_change > 0:
+                obv_direction = (
+                    f"资金流入（日线）[值:{obv_value:.0f}, 变化:{obv_change:.0f}]"
+                )
+            elif obv_change < 0:
+                obv_direction = (
+                    f"资金流出（日线）[值:{obv_value:.0f}, 变化:{obv_change:.0f}]"
+                )
+            else:
+                obv_direction = (
+                    f"资金持平（日线）[值:{obv_value:.0f}, 变化:{obv_change:.0f}]"
+                )
+
+        # 判断KDJ状态
+        kdj_k = forward_indicators_data.get("KDJ_K")
+        kdj_status = None
+        if pd.notna(kdj_k):
+            if kdj_k > 80:
+                kdj_status = "超买"
+            elif kdj_k < 20:
+                kdj_status = "超卖"
+            else:
+                kdj_status = "正常"
+
+        # 判断CCI状态
+        cci_value = forward_indicators_data.get("CCI_14")
+        cci_status = None
+        if pd.notna(cci_value):
+            if cci_value > 100:
+                cci_status = "超买"
+            elif cci_value < -100:
+                cci_status = "超卖"
+            else:
+                cci_status = "正常"
+
+        # 获取威廉指标值
+        wr1_value = forward_indicators_data.get("WR1")
+        wr2_value = forward_indicators_data.get("WR2")
+        wr_direction = None
+        if pd.notna(wr1_value) and pd.notna(wr2_value):
+            # 判断威廉指标状态
+            if wr1_value > 80 or wr2_value > 80:
+                wr_direction = "超卖"
+            elif wr1_value < 20 or wr2_value < 20:
+                wr_direction = "超买"
+            else:
+                wr_direction = "正常区间"
+
         combined_data["日线技术指标（前瞻性）"] = {
             "RSI12（日线）": forward_indicators_data.get("RSI_12"),
-            "KDJ（日线）": f"K={forward_indicators_data.get('KDJ_K'):.1f}, D={forward_indicators_data.get('KDJ_D'):.1f}, J={forward_indicators_data.get('KDJ_J'):.1f}"
+            "KDJ（日线）": f"K={forward_indicators_data.get('KDJ_K'):.1f}, D={forward_indicators_data.get('KDJ_D'):.1f}, J={forward_indicators_data.get('KDJ_J'):.1f} {kdj_status if kdj_status else ''}"
             if pd.notna(forward_indicators_data.get("KDJ_K"))
             else None,
-            "CCI（日线）": forward_indicators_data.get("CCI_14"),
-            "威廉指标（日线）": forward_indicators_data.get("WR_14"),
-            "OBV（日线）": "资金流入"
-            if forward_indicators_data.get("OBV_change", 0) > 0
-            else (
-                "资金流出"
-                if forward_indicators_data.get("OBV_change", 0) < 0
-                else "资金持平"
-            )
-            if pd.notna(forward_indicators_data.get("OBV"))
+            "CCI（日线）": f"{forward_indicators_data.get('CCI_14'):.1f} {cci_status if cci_status else ''}"
+            if pd.notna(forward_indicators_data.get("CCI_14"))
             else None,
+            "威廉指标（WR1/WR2）": {
+                "WR1": wr1_value,
+                "WR2": wr2_value,
+                "状态": wr_direction if wr_direction else "数据缺失",
+            }
+            if pd.notna(wr1_value) and pd.notna(wr2_value)
+            else "威廉指标数据缺失",
+            "OBV（日线）": obv_direction
+            if obv_direction is not None
+            else "OBV数据缺失",
         }
 
     # 添加分钟线数据（新增）- 明确标注时间周期
@@ -247,6 +304,39 @@ async def get_llm_score_and_analysis(
         # 获取 forward_indicators - 从 daily_trend_data 中
         forward_indicators_data = daily_trend_data.get("forward_indicators", {})
 
+        # 获取OBV和OBV_change值
+        obv_value_2 = forward_indicators_data.get("OBV")
+        obv_change_2 = forward_indicators_data.get("OBV_change")
+
+        # 判断OBV方向
+        obv_direction_2 = None
+        if pd.notna(obv_value_2) and pd.notna(obv_change_2):
+            if obv_change_2 > 0:
+                obv_direction_2 = (
+                    f"资金流入（日线）[值:{obv_value_2:.0f}, 变化:{obv_change_2:.0f}]"
+                )
+            elif obv_change_2 < 0:
+                obv_direction_2 = (
+                    f"资金流出（日线）[值:{obv_value_2:.0f}, 变化:{obv_change_2:.0f}]"
+                )
+            else:
+                obv_direction_2 = (
+                    f"资金持平（日线）[值:{obv_value_2:.0f}, 变化:{obv_change_2:.0f}]"
+                )
+
+        # 获取威廉指标值
+        wr1_value_2 = forward_indicators_data.get("WR1")
+        wr2_value_2 = forward_indicators_data.get("WR2")
+        wr_direction_2 = None
+        if pd.notna(wr1_value_2) and pd.notna(wr2_value_2):
+            # 判断威廉指标状态
+            if wr1_value_2 > 80 or wr2_value_2 > 80:
+                wr_direction_2 = "超卖"
+            elif wr1_value_2 < 20 or wr2_value_2 < 20:
+                wr_direction_2 = "超买"
+            else:
+                wr_direction_2 = "正常区间"
+
         combined_data["技术指标数据（日线）"] = {
             "当前价格": current_price,
             "RSI12（日线）": float(forward_indicators_data.get("RSI_12", 0))
@@ -258,18 +348,16 @@ async def get_llm_score_and_analysis(
             "CCI（日线）": forward_indicators_data.get("CCI_14", 0)
             if pd.notna(forward_indicators_data.get("CCI_14"))
             else None,
-            "威廉指标（日线）": forward_indicators_data.get("WR_14", 0)
-            if pd.notna(forward_indicators_data.get("WR_14"))
-            else None,
-            "OBV（日线）": "资金流入"
-            if forward_indicators_data.get("OBV_change", 0) > 0
-            else (
-                "资金流出"
-                if forward_indicators_data.get("OBV_change", 0) < 0
-                else "资金持平"
-            )
-            if pd.notna(forward_indicators_data.get("OBV"))
-            else None,
+            "威廉指标（WR1/WR2）": {
+                "WR1": wr1_value_2,
+                "WR2": wr2_value_2,
+                "状态": wr_direction_2 if wr_direction_2 else "数据缺失",
+            }
+            if pd.notna(wr1_value_2) and pd.notna(wr2_value_2)
+            else "威廉指标数据缺失",
+            "OBV（日线）": obv_direction_2
+            if obv_direction_2 is not None
+            else "OBV数据缺失",
         }
 
         support_list = support_resistance.get("support", [])

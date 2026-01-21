@@ -665,6 +665,10 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                             if pd.notna(latest.get("OBV"))
                             and pd.notna(prev_latest.get("OBV"))
                             else None,
+                            "OBV_debug": f"latest={latest.get('OBV'):.2f}, prev={prev_latest.get('OBV'):.2f}, change={latest.get('OBV', 0) - prev_latest.get('OBV', 0):.2f}"
+                            if pd.notna(latest.get("OBV"))
+                            and pd.notna(prev_latest.get("OBV"))
+                            else "OBV数据缺失",
                             "WR1": float(latest.get("WR1"))
                             if pd.notna(latest.get("WR1"))
                             else None,
