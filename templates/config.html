@@ -396,7 +396,7 @@
                     ...backendDebugInfo
                 };
                 
-                let debugText = '🔍 完整调试信息：\n\n';
+                let debugText = '[调试] 完整调试信息：\n\n';
                 for (const [key, value] of Object.entries(allDebugInfo)) {
                     if (key === '--- 后端真实配置 ---') {
                         debugText += `\n${key}\n`;
@@ -418,11 +418,11 @@
             console.error('获取后端配置失败:', error);
             
             // 如果后端请求失败，只显示前端信息
-            let debugText = '🔍 前端调试信息：\n\n';
+            let debugText = '[调试] 前端调试信息：\n\n';
             for (const [key, value] of Object.entries(frontendDebugInfo)) {
                 debugText += `${key}: ${value}\n`;
             }
-            debugText += `\n⚠️ 后端配置获取失败: ${error.message}`;
+            debugText += `\n[注意] 后端配置获取失败: ${error.message}`;
             
             alert(debugText);
         }
@@ -516,7 +516,7 @@
                         <h6 class="mb-1">连接测试成功！</h6>
                         <small>AI模型配置有效，可以正常使用</small>
                         <br><small class="text-muted">响应: ${data.response || '无响应'}</small>
-                        <br><small class="text-warning">💡 请点击"保存配置"按钮保存设置</small>
+                        <br><small class="text-warning">提示：请点击"保存配置"按钮保存设置</small>
                     </div>
                     <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="alert"></button>
                 </div>

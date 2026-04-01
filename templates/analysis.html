@@ -750,7 +750,7 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
 
                 ${ai_pred_1d ? `
                     <div class="mb-3">
-                        <small class="text-muted d-block mb-1">📈 AI 1日预测</small>
+                        <small class="text-muted d-block mb-1">1日预测</small>
                         <div class="d-flex align-items-center">
                             <div class="badge ${ai_pred_1d.trend && (ai_pred_1d.trend.includes('上涨') || ai_pred_1d.trend.includes('看多')) ? 'bg-success' : (ai_pred_1d.trend && ai_pred_1d.trend.includes('下跌') ? 'bg-danger' : 'bg-light text-dark border')}">
                                 ${ai_pred_1d.trend || '预测'}至${ai_pred_1d.target || 'N/A'}
@@ -767,7 +767,7 @@ function generatePredictionHTML(prediction_data, ai_signal, ai_confidence, ai_de
 
                 ${ai_pred_3d ? `
                     <div class="mb-3">
-                        <small class="text-muted d-block mb-1">📊 AI 3日预测</small>
+                        <small class="text-muted d-block mb-1">3日预测</small>
                         <div class="d-flex align-items-center">
                             <div class="badge ${ai_pred_3d.trend && (ai_pred_3d.trend.includes('上涨') || ai_pred_3d.trend.includes('看多')) ? 'bg-success' : (ai_pred_3d.trend && ai_pred_3d.trend.includes('下跌') ? 'bg-danger' : 'bg-light text-dark border')}">
                                 ${ai_pred_3d.trend || '预测'}至${ai_pred_3d.target || 'N/A'}

@@ -13,7 +13,7 @@
     </style>
 </head>
 <body>
-    <h1>🔍 系统诊断页面</h1>
+    <h1>系统诊断页面</h1>
 
     <div class="section">
         <h2>1. 页面加载状态</h2>
@@ -47,7 +47,7 @@
         // 页面加载状态
         window.addEventListener('load', function() {
             document.getElementById('pageStatus').innerHTML =
-                '<div class="success">✅ 页面加载成功</div>';
+                '<div class="success">[OK] 页面加载成功</div>';
             showBrowserInfo();
         });
 
@@ -62,15 +62,15 @@
                 });
 
                 if (response.status === 302) {
-                    status.innerHTML = '<div class="error">❌ 未登录，需要登录</div>';
+                    status.innerHTML = '<div class="error">[FAIL] 未登录，需要登录</div>';
                 } else if (response.status === 200) {
                     const data = await response.json();
-                    status.innerHTML = '<div class="success">✅ 连接成功：' + JSON.stringify(data) + '</div>';
+                    status.innerHTML = '<div class="success">[OK] 连接成功：' + JSON.stringify(data) + '</div>';
                 } else {
-                    status.innerHTML = '<div class="error">❌ 状态码：' + response.status + '</div>';
+                    status.innerHTML = '<div class="error">[FAIL] 状态码：' + response.status + '</div>';
                 }
             } catch (error) {
-                status.innerHTML = '<div class="error">❌ 连接失败：' + error.message + '</div>';
+                status.innerHTML = '<div class="error">[FAIL] 连接失败：' + error.message + '</div>';
             }
         }
 
@@ -86,18 +86,18 @@
 
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
-                    status.innerHTML = '<div class="error">❌ 未登录或会话过期</div>';
+                    status.innerHTML = '<div class="error">[FAIL] 未登录或会话过期</div>';
                     return;
                 }
 
                 const data = await response.json();
                 if (data.success) {
-                    status.innerHTML = '<div class="success">✅ 已登录 - 用户ID：' + data.user_id + ', 用户名：' + data.username + '</div>';
+                    status.innerHTML = '<div class="success">[OK] 已登录 - 用户ID：' + data.user_id + ', 用户名：' + data.username + '</div>';
                 } else {
-                    status.innerHTML = '<div class="error">❌ 登录检查失败</div>';
+                    status.innerHTML = '<div class="error">[FAIL] 登录检查失败</div>';
                 }
             } catch (error) {
-                status.innerHTML = '<div class="error">❌ 检查失败：' + error.message + '</div>';
+                status.innerHTML = '<div class="error">[FAIL] 检查失败：' + error.message + '</div>';
             }
         }
 
@@ -113,7 +113,7 @@
 
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
-                    status.innerHTML = '<div class="error">❌ 未登录或API返回非JSON数据</div>';
+                    status.innerHTML = '<div class="error">[FAIL] 未登录或API返回非JSON数据</div>';
                     return;
                 }
 
@@ -138,12 +138,12 @@
                         });
                     }
 
-                    status.innerHTML = '<div class="success">✅ 获取成功<br>' + details + '</div>';
+                    status.innerHTML = '<div class="success">[OK] 获取成功<br>' + details + '</div>';
                 } else {
-                    status.innerHTML = '<div class="error">❌ API返回错误：' + data.error + '</div>';
+                    status.innerHTML = '<div class="error">[FAIL] API返回错误：' + data.error + '</div>';
                 }
             } catch (error) {
-                status.innerHTML = '<div class="error">❌ 获取失败：' + error.message + '</div>';
+                status.innerHTML = '<div class="error">[FAIL] 获取失败：' + error.message + '</div>';
             }
         }
 
@@ -164,7 +164,7 @@
             setTimeout(() => {
                 const pageStatus = document.getElementById('pageStatus');
                 if (pageStatus.innerHTML === '正在检查...') {
-                    pageStatus.innerHTML = '<div class="error">❌ 页面加载异常</div>';
+                    pageStatus.innerHTML = '<div class="error">[FAIL] 页面加载异常</div>';
                 }
             }, 1000);
         });
