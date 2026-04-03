@@ -1145,13 +1145,24 @@ def _calculate_weighted_score(base_score, technical_indicators):
 
 def _parse_openai_response(raw_content):
     """解析OpenAI兼容格式的响应"""
-    # 移除可能的markdown代码块包裹
+    import re
+
+    # 1. 移除可能的 markdown 代码块标记（```json 或 ```）
     if raw_content.strip().startswith('```'):
-        import re
         json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_content)
         if json_match:
             raw_content = json_match.group(1)
-            
+
+    # 2. 移除可能的语言标记和复制按钮文本（如 "JSON\nコピー\n" 或 "json\ncopy\n"）
+    # 这些通常出现在 LLM 输出的代码块前
+    raw_content = re.sub(r'^(?:JSON|json|JavaScript|javascript)\s*(?:コピー|copy|Copy)?\s*\n', '', raw_content.strip(), flags=re.IGNORECASE)
+
+    # 3. 尝试直接提取 JSON 对象（最宽松的匹配）
+    # 查找第一个 { 到最后一个 } 之间的内容
+    json_obj_match = re.search(r'(\{[\s\S]*\})', raw_content)
+    if json_obj_match:
+        raw_content = json_obj_match.group(1)
+
     try:
         parsed_json = json.loads(raw_content)
 

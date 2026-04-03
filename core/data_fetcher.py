@@ -28,22 +28,72 @@ cache = TTLCache(maxsize=10, ttl=CACHE_EXPIRE)
 DB_PATH = "etf_analysis.db"
 
 
+# ========== 反爬虫增强：伪装 User-Agent ==========
+# 随机 User-Agent 池（模拟真实浏览器）
+USER_AGENT_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+]
+
+# 保存原始的 requests.Session.request 方法
+_original_request = requests.Session.request
+
+
+def _patched_request(self, method, url, **kwargs):
+    """
+    给所有 requests 请求自动添加随机 User-Agent 和其他 headers
+    """
+    # 如果用户没有指定 headers，添加默认 headers
+    if "headers" not in kwargs:
+        kwargs["headers"] = {}
+
+    # 随机选择 User-Agent（模拟真实用户）
+    if "User-Agent" not in kwargs["headers"]:
+        kwargs["headers"]["User-Agent"] = random.choice(USER_AGENT_POOL)
+
+    # 添加其他常见的浏览器 headers
+    if "Accept" not in kwargs["headers"]:
+        kwargs["headers"]["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    if "Accept-Language" not in kwargs["headers"]:
+        kwargs["headers"]["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
+    if "Accept-Encoding" not in kwargs["headers"]:
+        kwargs["headers"]["Accept-Encoding"] = "gzip, deflate, br"
+    if "Connection" not in kwargs["headers"]:
+        kwargs["headers"]["Connection"] = "keep-alive"
+    if "Upgrade-Insecure-Requests" not in kwargs["headers"]:
+        kwargs["headers"]["Upgrade-Insecure-Requests"] = "1"
+
+    # 调用原始方法
+    return _original_request(self, method, url, **kwargs)
+
+
+# 应用猴子补丁（Monkey Patch）
+requests.Session.request = _patched_request
+logger.info("🛡️ 反爬虫增强已启用：随机 User-Agent 和浏览器 headers 伪装")
+# ========== 反爬虫增强结束 ==========
+
+
+
 # 反爬虫控制
 class AntiCrawlingController:
-    """反爬虫控制器"""
+    """反爬虫控制器 - 增强版"""
 
     def __init__(self):
         self.last_request_time = {}
         self.request_count = {}
-        self.base_delay = 3  # 基础延迟3秒（降低延迟以提高响应速度）
-        self.max_delay = 10  # 最大延迟10秒
+        self.base_delay = 5  # 基础延迟增加到5秒（防止被ban）
+        self.max_delay = 15  # 最大延迟15秒
         self.request_window = 60  # 请求时间窗口（秒）
-        self.max_requests_per_window = 5  # 每个时间窗口最大请求数（降低并发）
+        self.max_requests_per_window = 3  # 每60秒最多3个请求（降低频率）
         self.last_global_request_time = 0  # 全局最后请求时间
-        self.min_global_interval = 2  # 全局最小请求间隔（秒）
+        self.min_global_interval = 4  # 全局最小请求间隔增加到4秒
 
     def get_smart_delay(self, api_name: str) -> float:
-        """获取智能延迟时间"""
+        """获取智能延迟时间（增强版）"""
         current_time = time.time()
 
         # 清理过期的请求记录
@@ -63,17 +113,17 @@ class AntiCrawlingController:
         else:
             global_wait = 0
 
-        # 根据请求频率动态调整延迟
+        # 根据请求频率动态调整延迟（更保守）
         recent_requests = self.request_count.get(api_name, 0)
         if recent_requests >= self.max_requests_per_window:
             # 请求过于频繁，大幅增加延迟
-            delay = self.base_delay + random.uniform(2, 4)
-        elif recent_requests >= self.max_requests_per_window * 0.7:
+            delay = self.base_delay + random.uniform(5, 8)
+        elif recent_requests >= self.max_requests_per_window * 0.6:
             # 请求较多，适度增加延迟
-            delay = self.base_delay + random.uniform(1, 2)
+            delay = self.base_delay + random.uniform(2, 4)
         else:
-            # 正常请求，使用基础延迟 + 随机波动
-            delay = self.base_delay + random.uniform(0.5, 1.5)
+            # 正常请求，使用基础延迟 + 更大的随机波动（模拟人类）
+            delay = self.base_delay + random.uniform(1, 3)
 
         # 确保延迟在合理范围内
         delay = min(max(delay, self.base_delay), self.max_delay)
@@ -101,7 +151,7 @@ def get_request_semaphore():
     """获取请求信号量（延迟初始化）"""
     global _request_semaphore
     if _request_semaphore is None:
-        _request_semaphore = asyncio.Semaphore(2)
+        _request_semaphore = asyncio.Semaphore(1)  # 降低到1个并发（更安全）
     return _request_semaphore
 
 
@@ -321,17 +371,13 @@ async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
             requests.exceptions.RequestException,
         ) as e:
             logger.error(
-                f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时连接错误 (将进行重试): {e}"
+                f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时连接错误（已被限流/ban）: {e}"
             )
-            extra_delay = random.uniform(5, 10)
-            logger.info(
-                f"⏳ [ETF历史数据] 连接错误，额外等待 {extra_delay:.2f} 秒后重试"
-            )
-            await asyncio.sleep(extra_delay)
+            # 不再重试，直接抛出异常
             raise e
         except Exception as e:
             logger.error(
-                f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时出错 (将进行重试): {e}",
+                f"💥 [ETF历史数据] 获取 {etf_code} 日线数据时出错: {e}",
                 exc_info=True,
             )
             raise e
@@ -610,17 +656,13 @@ async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
             requests.exceptions.RequestException,
         ) as e:
             logger.error(
-                f"💥 [股票历史数据] 获取 {stock_code} 日线数据时连接错误 (将进行重试): {e}"
+                f"💥 [股票历史数据] 获取 {stock_code} 日线数据时连接错误（已被限流/ban）: {e}"
             )
-            extra_delay = random.uniform(5, 10)
-            logger.info(
-                f"⏳ [股票历史数据] 连接错误，额外等待 {extra_delay:.2f} 秒后重试"
-            )
-            await asyncio.sleep(extra_delay)
+            # 不再重试，直接抛出异常
             raise e
         except Exception as e:
             logger.error(
-                f"💥 [股票历史数据] 获取 {stock_code} 日线数据时出错 (将进行重试): {e}",
+                f"💥 [股票历史数据] 获取 {stock_code} 日线数据时出错: {e}",
                 exc_info=True,
             )
             raise e
