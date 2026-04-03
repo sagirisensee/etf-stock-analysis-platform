@@ -92,8 +92,14 @@ def _create_realtime_data_from_history(daily_trends_list, core_pool):
 
 
 async def generate_ai_driven_report(
-    get_realtime_data_func, get_daily_history_func, core_pool
+    get_realtime_data_func, get_daily_history_func, core_pool, llm_config=None
 ):
+    """生成AI驱动的分析报告
+
+    Args:
+        llm_config: 包含 LLM_API_BASE, LLM_API_KEY, LLM_MODEL_NAME 的配置字典
+                   如果为 None，则从环境变量读取（向后兼容）
+    """
     logger.info("启动AI驱动的统一全面分析引擎...")
     final_report = []
     start_time = time.time()
@@ -307,6 +313,7 @@ async def generate_ai_driven_report(
                             signal_data=signal_data,
                             alert_data=alert_data,
                             prediction_data=prediction_data,
+                            llm_config=llm_config,
                         ),
                         timeout=60,  # LLM分析单次超时60秒
                     )
@@ -860,8 +867,13 @@ class _IntradaySignalGenerator:
 
 
 async def get_detailed_analysis_report_for_debug(
-    get_realtime_data_func, get_daily_history_func, core_pool
+    get_realtime_data_func, get_daily_history_func, core_pool, llm_config=None
 ):
+    """调试分析报告（不调用LLM）
+
+    Args:
+        llm_config: 保留参数以保持接口一致性，但在此函数中不使用
+    """
     logger.info("启动AI驱动的调试分析引擎，不调用LLM...")
     realtime_data_df_task = asyncio.to_thread(get_realtime_data_func)
     daily_trends_task = _get_daily_trends_generic(get_daily_history_func, core_pool)

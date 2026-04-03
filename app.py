@@ -31,7 +31,9 @@ from core.data_fetcher import (
 )
 
 app = Flask(__name__)
-app.secret_key = "your-secret-key-change-this"
+# 从环境变量读取密钥，如果未设置则生成随机密钥（注意：随机密钥在重启后会变化，导致用户需要重新登录）
+# 生产环境建议设置固定的环境变量 SECRET_KEY
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 
 # 添加自定义Jinja2过滤器
@@ -69,8 +71,14 @@ DB_PATH = "etf_analysis.db"
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    # 增加超时时间到 30 秒，避免并发时快速失败
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+
+    # 启用 WAL (Write-Ahead Logging) 模式，提升并发性能
+    # WAL 模式允许读操作和写操作并发执行，不会互相阻塞
+    conn.execute("PRAGMA journal_mode=WAL")
+
     try:
         yield conn
     finally:
@@ -718,8 +726,7 @@ def update_config():
 
         for key, value in config_data.items():
             set_user_config(user_id, key, value)
-            # 更新环境变量（仅当前会话）
-            os.environ[key] = value
+            # 注意：不再修改全局 os.environ，避免多用户配置互相污染
 
         flash("个人配置更新成功！", "success")
         return redirect(url_for("config_page"))
@@ -888,16 +895,16 @@ def api_analyze(analysis_type):
             error_message = f"个人AI API配置不完整，请前往配置页面填写：{', '.join(missing_configs)}"
             return jsonify({"success": False, "error": error_message})
 
-        # 更新环境变量
-        for key in [
-            "LLM_API_BASE",
-            "LLM_API_KEY",
-            "LLM_MODEL_NAME",
-            "CACHE_EXPIRE_SECONDS",
-        ]:
-            value = get_user_config(user_id, key)
-            if value:
-                os.environ[key] = value
+        # 构建用户的 LLM 配置字典（线程安全，不污染全局环境变量）
+        llm_config = {
+            "LLM_API_BASE": llm_api_base,
+            "LLM_API_KEY": llm_api_key,
+            "LLM_MODEL_NAME": llm_model_name,
+        }
+        # 可选的缓存配置
+        cache_expire = get_user_config(user_id, "CACHE_EXPIRE_SECONDS")
+        if cache_expire:
+            llm_config["CACHE_EXPIRE_SECONDS"] = cache_expire
 
         # 检查是否是个别分析
         individual_code = request.args.get("code")
@@ -951,13 +958,13 @@ def api_analyze(analysis_type):
                 if analysis_type.startswith("etf_debug"):
                     results = loop.run_until_complete(
                         get_detailed_analysis_report_for_debug(
-                            get_all_etf_spot_realtime, get_etf_daily_history, core_pool
+                            get_all_etf_spot_realtime, get_etf_daily_history, core_pool, llm_config
                         )
                     )
                 else:
                     results = loop.run_until_complete(
                         generate_ai_driven_report(
-                            get_all_etf_spot_realtime, get_etf_daily_history, core_pool
+                            get_all_etf_spot_realtime, get_etf_daily_history, core_pool, llm_config
                         )
                     )
             elif analysis_type in ["stock", "stock_debug", "stock_debug_with_details"]:
@@ -967,6 +974,7 @@ def api_analyze(analysis_type):
                             get_all_stock_spot_realtime,
                             get_stock_daily_history,
                             core_pool,
+                            llm_config,
                         )
                     )
                 else:
@@ -975,6 +983,7 @@ def api_analyze(analysis_type):
                             get_all_stock_spot_realtime,
                             get_stock_daily_history,
                             core_pool,
+                            llm_config,
                         )
                     )
             else:
@@ -1224,16 +1233,18 @@ def test_api_connection():
         if not api_base or not api_key or not model_name:
             return jsonify({"success": False, "error": "请先配置完整的API信息"}), 400
 
-        # 临时设置环境变量
-        os.environ["LLM_API_BASE"] = api_base
-        os.environ["LLM_API_KEY"] = api_key
-        os.environ["LLM_MODEL_NAME"] = model_name
+        # 构建测试用的 LLM 配置（线程安全，不污染全局环境变量）
+        test_llm_config = {
+            "LLM_API_BASE": api_base,
+            "LLM_API_KEY": api_key,
+            "LLM_MODEL_NAME": model_name,
+        }
 
         # 导入LLM分析器进行测试
         from core.llm_analyzer import _get_openai_client
 
-        # 获取客户端
-        client = _get_openai_client()
+        # 获取客户端，传递配置参数
+        client = _get_openai_client(test_llm_config)
         if not client:
             return jsonify({"success": False, "error": "无法初始化API客户端"}), 500
 

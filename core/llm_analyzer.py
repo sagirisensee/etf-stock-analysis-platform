@@ -11,9 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 # --- 配置 ---
-def _get_api_provider():
-    """检测API提供商类型"""
-    api_base = os.getenv("LLM_API_BASE", "").lower()
+def _get_api_provider(llm_config=None):
+    """检测API提供商类型
+
+    Args:
+        llm_config: 包含 LLM_API_BASE, LLM_API_KEY, LLM_MODEL_NAME 的配置字典
+    """
+    if llm_config and "LLM_API_BASE" in llm_config:
+        api_base = llm_config["LLM_API_BASE"].lower()
+    else:
+        api_base = os.getenv("LLM_API_BASE", "").lower()
+
     if "perplexity" in api_base:
         return "perplexity"
     elif "openai" in api_base or "siliconflow" in api_base:
@@ -22,11 +30,21 @@ def _get_api_provider():
         return "openai"  # 默认为OpenAI格式
 
 
-def _get_openai_client():
-    """动态获取OpenAI客户端，优先使用环境变量中的配置"""
+def _get_openai_client(llm_config=None):
+    """动态获取OpenAI客户端
+
+    Args:
+        llm_config: 包含 LLM_API_BASE, LLM_API_KEY, LLM_MODEL_NAME 的配置字典
+                   如果为 None，则从环境变量读取（向后兼容）
+    """
     try:
-        api_base = os.getenv("LLM_API_BASE")
-        api_key = os.getenv("LLM_API_KEY")
+        if llm_config:
+            api_base = llm_config.get("LLM_API_BASE")
+            api_key = llm_config.get("LLM_API_KEY")
+        else:
+            # 向后兼容：如果没有传递配置，则从环境变量读取
+            api_base = os.getenv("LLM_API_BASE")
+            api_key = os.getenv("LLM_API_KEY")
 
         if not api_base or not api_key:
             logger.warning("LLM API配置不完整，请在Web界面配置或设置环境变量")
@@ -58,10 +76,16 @@ async def get_llm_score_and_analysis(
     signal_data=None,
     alert_data=None,
     prediction_data=None,
+    llm_config=None,
 ):
-    """调用大模型对单支ETF进行分析和打分（支持多周期数据）"""
-    # 动态获取客户端
-    current_client = _get_openai_client()
+    """调用大模型对单支ETF进行分析和打分（支持多周期数据）
+
+    Args:
+        llm_config: 包含 LLM_API_BASE, LLM_API_KEY, LLM_MODEL_NAME 的配置字典
+                   如果为 None，则从环境变量读取（向后兼容）
+    """
+    # 动态获取客户端，传递用户特定的配置
+    current_client = _get_openai_client(llm_config)
     if current_client is None:
         return {
             "signal": "持有",
@@ -75,7 +99,7 @@ async def get_llm_score_and_analysis(
         }
 
     # 检测API提供商
-    api_provider = _get_api_provider()
+    api_provider = _get_api_provider(llm_config)
     logger.info(f"检测到API提供商: {api_provider}")
 
     # --- 1. 修改 prompt_data 的结构 ---
@@ -484,9 +508,15 @@ async def get_llm_score_and_analysis(
 
     for attempt in range(max_retries):
         try:
+            # 从配置中获取模型名称
+            if llm_config and "LLM_MODEL_NAME" in llm_config:
+                model_name = llm_config["LLM_MODEL_NAME"]
+            else:
+                model_name = os.getenv("LLM_MODEL_NAME", "sonar-pro")
+
             # 根据API提供商构建不同的请求参数
             request_params = {
-                "model": os.getenv("LLM_MODEL_NAME", "sonar-pro"),
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {
@@ -1213,8 +1243,12 @@ async def get_llm_score_with_signal(
     signal_data=None,
     alert_data=None,
     prediction_data=None,
+    llm_config=None,
 ):
     """调用大模型对单支ETF进行分析和打分（支持前瞻性指标和买卖信号）
+
+    Args:
+        llm_config: 包含 LLM_API_BASE, LLM_API_KEY, LLM_MODEL_NAME 的配置字典
 
     返回: (score, signal, comment)
     - score: 评分
@@ -1229,6 +1263,7 @@ async def get_llm_score_with_signal(
         signal_data,
         alert_data,
         prediction_data,
+        llm_config=llm_config,
     )
 
     # 如果有signal_data，使用其中的买卖信号

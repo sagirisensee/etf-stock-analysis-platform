@@ -28,15 +28,23 @@ if __name__ == '__main__':
         
         # 启动Web服务
         print("启动Web服务...")
-        print("访问地址: http://localhost:8888")
+        print("访问地址: http://0.0.0.0:8888")
         print("按 Ctrl+C 停止服务")
         
-        app.run(
-            debug=False,
-            host='0.0.0.0',
-            port=8888,
-            threaded=True
-        )
+        try:
+            from waitress import serve
+            print("✅ 正在使用 Waitress 生产级服务器运行 (多线程并发处理)...")
+            # threads=4 可以同时处理更多的并发请求
+            serve(app, host='0.0.0.0', port=8888, threads=6)
+        except ImportError:
+            print("⚠️ 未检测到 waitress 生产服务器模块，回退到开发服务器运行。")
+            print("建议执行: pip install waitress")
+            app.run(
+                debug=False,
+                host='0.0.0.0',
+                port=8888,
+                threaded=True
+            )
         
     except KeyboardInterrupt:
         print("\n服务已停止")
