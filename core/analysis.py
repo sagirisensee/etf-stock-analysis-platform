@@ -315,7 +315,7 @@ async def generate_ai_driven_report(
                             prediction_data=prediction_data,
                             llm_config=llm_config,
                         ),
-                        timeout=60,  # LLM分析单次超时60秒
+                        timeout=180,  # LLM分析单次超时180秒（3分钟）
                     )
                 except asyncio.TimeoutError:
                     logger.warning(f"LLM分析 {name}({code}) 超时，跳过")

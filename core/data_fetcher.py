@@ -263,19 +263,12 @@ def get_all_etf_spot_realtime():
 
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=3, min=15, max=180),
-    retry=retry_if_exception_type(
-        (
-            ConnectionError,
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-            requests.exceptions.RequestException,
-        )
-    ),
+    stop=stop_after_attempt(1),  # 只尝试1次，不重试（被ban了重试也没用）
+    wait=wait_fixed(0),  # 不等待
+    retry=retry_if_exception_type(()),  # 不重试任何异常
 )
 async def get_etf_daily_history(etf_code: str, data_type: str = "etf"):
-    """获取单支ETF的历史日线数据 (带自动重试)"""
+    """获取单支ETF的历史日线数据（不重试，被ban直接失败）"""
     logger.info(
         f"🔍 [ETF历史数据] 正在获取 {etf_code} 的历史日线数据，类型: {data_type}"
     )
@@ -565,19 +558,12 @@ def get_all_stock_spot_realtime():
 
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=3, min=15, max=180),
-    retry=retry_if_exception_type(
-        (
-            ConnectionError,
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-            requests.exceptions.RequestException,
-        )
-    ),
+    stop=stop_after_attempt(1),  # 只尝试1次，不重试（被ban了重试也没用）
+    wait=wait_fixed(0),  # 不等待
+    retry=retry_if_exception_type(()),  # 不重试任何异常
 )
 async def get_stock_daily_history(stock_code: str, data_type: str = "stock"):
-    """获取单支股票的历史日线数据 (带自动重试)"""
+    """获取单支股票的历史日线数据（不重试，被ban直接失败）"""
     logger.info(
         f"🔍 [股票历史数据] 正在获取 {stock_code} 的历史日线数据，类型: {data_type}"
     )
