@@ -45,7 +45,7 @@ _original_request = requests.Session.request
 
 def _patched_request(self, method, url, **kwargs):
     """
-    给所有 requests 请求自动添加随机 User-Agent 和其他 headers
+    给所有 requests 请求自动添加随机 User-Agent、headers 和增加 timeout
     """
     # 如果用户没有指定 headers，添加默认 headers
     if "headers" not in kwargs:
@@ -67,13 +67,18 @@ def _patched_request(self, method, url, **kwargs):
     if "Upgrade-Insecure-Requests" not in kwargs["headers"]:
         kwargs["headers"]["Upgrade-Insecure-Requests"] = "1"
 
+    # 增加 timeout 时间（防止读取超时）
+    if "timeout" not in kwargs:
+        # 默认 60 秒超时（连接超时10秒 + 读取超时60秒）
+        kwargs["timeout"] = (10, 60)
+
     # 调用原始方法
     return _original_request(self, method, url, **kwargs)
 
 
 # 应用猴子补丁（Monkey Patch）
 requests.Session.request = _patched_request
-logger.info("🛡️ 反爬虫增强已启用：随机 User-Agent 和浏览器 headers 伪装")
+logger.info("🛡️ 反爬虫增强已启用：随机 User-Agent、浏览器 headers 伪装、超时时间 60 秒")
 # ========== 反爬虫增强结束 ==========
 
 
