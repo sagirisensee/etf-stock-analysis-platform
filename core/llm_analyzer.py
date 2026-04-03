@@ -1144,24 +1144,33 @@ def _calculate_weighted_score(base_score, technical_indicators):
 
 
 def _parse_openai_response(raw_content):
-    """解析OpenAI兼容格式的响应"""
+    """解析OpenAI兼容格式的响应（增强版）"""
     import re
 
+    # 0. 先进行基础清理：移除 BOM、不可见字符
+    raw_content = raw_content.strip()
+    # 移除 UTF-8 BOM
+    if raw_content.startswith('\ufeff'):
+        raw_content = raw_content[1:]
+    # 移除零宽字符
+    raw_content = raw_content.replace('\u200b', '').replace('\u200c', '').replace('\u200d', '')
+
     # 1. 移除可能的 markdown 代码块标记（```json 或 ```）
-    if raw_content.strip().startswith('```'):
+    if raw_content.startswith('```'):
         json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_content)
         if json_match:
-            raw_content = json_match.group(1)
+            raw_content = json_match.group(1).strip()
 
     # 2. 移除可能的语言标记和复制按钮文本（如 "JSON\nコピー\n" 或 "json\ncopy\n"）
-    # 这些通常出现在 LLM 输出的代码块前
-    raw_content = re.sub(r'^(?:JSON|json|JavaScript|javascript)\s*(?:コピー|copy|Copy)?\s*\n', '', raw_content.strip(), flags=re.IGNORECASE)
+    raw_content = re.sub(r'^(?:JSON|json|JavaScript|javascript)\s*(?:コピー|copy|Copy)?\s*\n', '', raw_content, flags=re.IGNORECASE)
 
     # 3. 尝试直接提取 JSON 对象（最宽松的匹配）
-    # 查找第一个 { 到最后一个 } 之间的内容
     json_obj_match = re.search(r'(\{[\s\S]*\})', raw_content)
     if json_obj_match:
-        raw_content = json_obj_match.group(1)
+        raw_content = json_obj_match.group(1).strip()
+
+    # 4. 最后清理：确保没有多余的空白字符
+    raw_content = raw_content.strip()
 
     try:
         parsed_json = json.loads(raw_content)
@@ -1213,7 +1222,15 @@ def _parse_openai_response(raw_content):
                 "comment": "OpenAI返回格式错误或内容不符合预期。",
             }
     except json.JSONDecodeError as e:
-        logger.error(f"OpenAI响应JSON解析失败: {e}, 内容: {raw_content}")
+        # 显示详细的调试信息
+        first_20_chars = raw_content[:20] if len(raw_content) >= 20 else raw_content
+        hex_repr = ' '.join([f'{ord(c):04x}' for c in first_20_chars])
+        logger.error(
+            f"OpenAI响应JSON解析失败: {e}\n"
+            f"前20个字符: {repr(first_20_chars)}\n"
+            f"十六进制: {hex_repr}\n"
+            f"完整内容: {raw_content[:200]}..."
+        )
         return {
             "signal": "持有",
             "confidence": 50,
