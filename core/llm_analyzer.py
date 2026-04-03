@@ -35,6 +35,7 @@ def _get_openai_client():
         return OpenAI(
             base_url=api_base,
             api_key=api_key,
+            default_headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 ETFAnalyzer/1.0"}
         )
     except Exception as e:
         logger.error(f"初始化OpenAI客户端失败: {e}")
@@ -1114,6 +1115,13 @@ def _calculate_weighted_score(base_score, technical_indicators):
 
 def _parse_openai_response(raw_content):
     """解析OpenAI兼容格式的响应"""
+    # 移除可能的markdown代码块包裹
+    if raw_content.strip().startswith('```'):
+        import re
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_content)
+        if json_match:
+            raw_content = json_match.group(1)
+            
     try:
         parsed_json = json.loads(raw_content)
 
