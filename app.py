@@ -28,12 +28,22 @@ from core.data_fetcher import (
     get_etf_daily_history,
     get_all_stock_spot_realtime,
     get_stock_daily_history,
+    PROXY_WORKER_URL,
 )
 
 app = Flask(__name__)
 # 从环境变量读取密钥，如果未设置则生成随机密钥（注意：随机密钥在重启后会变化，导致用户需要重新登录）
 # 生产环境建议设置固定的环境变量 SECRET_KEY
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
+
+
+@app.context_processor
+def inject_proxy_status():
+    """向所有模板注入代理状态信息"""
+    return {
+        "proxy_enabled": bool(PROXY_WORKER_URL),
+        "proxy_url": PROXY_WORKER_URL,
+    }
 
 
 # 添加自定义Jinja2过滤器
