@@ -17,6 +17,7 @@ import time
 import random
 from datetime import datetime, timedelta
 import requests
+from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,46 @@ cache = TTLCache(maxsize=10, ttl=CACHE_EXPIRE)
 
 # 数据库路径
 DB_PATH = "etf_analysis.db"
+
+
+# ========== Cloudflare Worker 出站代理配置 ==========
+# 设置环境变量即可启用：
+#   PROXY_WORKER_URL=https://your-worker-name.your-account.workers.dev
+#   PROXY_AUTH_TOKEN=your_token  (可选，对应 Worker 的 AUTH_TOKEN)
+PROXY_WORKER_URL = os.getenv("PROXY_WORKER_URL", "").rstrip("/")
+PROXY_AUTH_TOKEN = os.getenv("PROXY_AUTH_TOKEN", "")
+
+# 需要走代理的域名列表（与 Worker 端白名单对应）
+PROXY_DOMAINS = [
+    "eastmoney.com",
+    "1234567.com.cn",
+    "10jqka.com.cn",
+    "sinajs.cn",
+    "sina.com.cn",
+    "sse.com.cn",
+    "szse.cn",
+    "xueqiu.com",
+    "doctorxiong.club",
+]
+
+def _should_proxy(url: str) -> bool:
+    """判断该 URL 是否需要走 Cloudflare Worker 代理"""
+    if not PROXY_WORKER_URL:
+        return False
+    try:
+        hostname = urlparse(url).hostname or ""
+        return any(
+            hostname == domain or hostname.endswith("." + domain)
+            for domain in PROXY_DOMAINS
+        )
+    except Exception:
+        return False
+
+if PROXY_WORKER_URL:
+    logger.info(f"☁️ Cloudflare Worker 代理已启用: {PROXY_WORKER_URL}")
+else:
+    logger.info("☁️ Cloudflare Worker 代理未启用 (设置 PROXY_WORKER_URL 环境变量以启用)")
+# ========== 代理配置结束 ==========
 
 
 # ========== 反爬虫增强：伪装 User-Agent ==========
@@ -45,7 +86,8 @@ _original_request = requests.Session.request
 
 def _patched_request(self, method, url, **kwargs):
     """
-    给所有 requests 请求自动添加随机 User-Agent、headers 和增加 timeout
+    给所有 requests 请求自动添加随机 User-Agent、headers 和增加 timeout。
+    如果启用了 Cloudflare Worker 代理，自动将匹配域名的请求通过 Worker 中转。
     """
     # 如果用户没有指定 headers，添加默认 headers
     if "headers" not in kwargs:
@@ -71,6 +113,19 @@ def _patched_request(self, method, url, **kwargs):
     if "timeout" not in kwargs:
         # 默认 60 秒超时（连接超时10秒 + 读取超时60秒）
         kwargs["timeout"] = (10, 60)
+
+    # ===== Cloudflare Worker 代理转发 =====
+    if _should_proxy(url):
+        # 将原始 URL 编码后作为 ?url= 参数传给 Worker
+        proxy_url = f"{PROXY_WORKER_URL}/?url={quote(url, safe='')}"
+        logger.info(f"☁️ 代理转发: {url[:80]}... → Worker")
+
+        # 添加鉴权 Token（如果配置了）
+        if PROXY_AUTH_TOKEN:
+            kwargs["headers"]["X-Proxy-Token"] = PROXY_AUTH_TOKEN
+
+        # 通过 Worker 转发，使用代理 URL 替换原始 URL
+        return _original_request(self, method, proxy_url, **kwargs)
 
     # 调用原始方法
     return _original_request(self, method, url, **kwargs)
