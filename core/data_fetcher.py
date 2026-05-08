@@ -17,7 +17,7 @@ import time
 import random
 from datetime import datetime, timedelta
 import requests
-from urllib.parse import quote, urlparse
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,114 +27,6 @@ cache = TTLCache(maxsize=10, ttl=CACHE_EXPIRE)
 
 # 数据库路径
 DB_PATH = "etf_analysis.db"
-
-
-# ========== Cloudflare Worker 出站代理配置 ==========
-# 设置环境变量即可启用：
-#   PROXY_WORKER_URL=https://your-worker-name.your-account.workers.dev
-#   PROXY_AUTH_TOKEN=your_token  (可选，对应 Worker 的 AUTH_TOKEN)
-PROXY_WORKER_URL = os.getenv("PROXY_WORKER_URL", "").rstrip("/")
-PROXY_AUTH_TOKEN = os.getenv("PROXY_AUTH_TOKEN", "")
-
-# 需要走代理的域名列表（与 Worker 端白名单对应）
-PROXY_DOMAINS = [
-    "eastmoney.com",
-    "1234567.com.cn",
-    "10jqka.com.cn",
-    "sinajs.cn",
-    "sina.com.cn",
-    "sse.com.cn",
-    "szse.cn",
-    "xueqiu.com",
-    "doctorxiong.club",
-]
-
-def _should_proxy(url: str) -> bool:
-    """判断该 URL 是否需要走 Cloudflare Worker 代理"""
-    if not PROXY_WORKER_URL:
-        return False
-    try:
-        hostname = urlparse(url).hostname or ""
-        return any(
-            hostname == domain or hostname.endswith("." + domain)
-            for domain in PROXY_DOMAINS
-        )
-    except Exception:
-        return False
-
-if PROXY_WORKER_URL:
-    logger.info(f"☁️ Cloudflare Worker 代理已启用: {PROXY_WORKER_URL}")
-else:
-    logger.info("☁️ Cloudflare Worker 代理未启用 (设置 PROXY_WORKER_URL 环境变量以启用)")
-# ========== 代理配置结束 ==========
-
-
-# ========== 反爬虫增强：伪装 User-Agent ==========
-# 随机 User-Agent 池（模拟真实浏览器）
-USER_AGENT_POOL = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-]
-
-# 保存原始的 requests.Session.request 方法
-_original_request = requests.Session.request
-
-
-def _patched_request(self, method, url, **kwargs):
-    """
-    给所有 requests 请求自动添加随机 User-Agent、headers 和增加 timeout。
-    如果启用了 Cloudflare Worker 代理，自动将匹配域名的请求通过 Worker 中转。
-    """
-    # 如果用户没有指定 headers，添加默认 headers
-    if "headers" not in kwargs:
-        kwargs["headers"] = {}
-
-    # 随机选择 User-Agent（模拟真实用户）
-    if "User-Agent" not in kwargs["headers"]:
-        kwargs["headers"]["User-Agent"] = random.choice(USER_AGENT_POOL)
-
-    # 添加其他常见的浏览器 headers
-    if "Accept" not in kwargs["headers"]:
-        kwargs["headers"]["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-    if "Accept-Language" not in kwargs["headers"]:
-        kwargs["headers"]["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
-    if "Accept-Encoding" not in kwargs["headers"]:
-        kwargs["headers"]["Accept-Encoding"] = "gzip, deflate, br"
-    if "Connection" not in kwargs["headers"]:
-        kwargs["headers"]["Connection"] = "keep-alive"
-    if "Upgrade-Insecure-Requests" not in kwargs["headers"]:
-        kwargs["headers"]["Upgrade-Insecure-Requests"] = "1"
-
-    # 增加 timeout 时间（防止读取超时）
-    if "timeout" not in kwargs:
-        # 默认 60 秒超时（连接超时10秒 + 读取超时60秒）
-        kwargs["timeout"] = (10, 60)
-
-    # ===== Cloudflare Worker 代理转发 =====
-    if _should_proxy(url):
-        # 将原始 URL 编码后作为 ?url= 参数传给 Worker
-        proxy_url = f"{PROXY_WORKER_URL}/?url={quote(url, safe='')}"
-        logger.info(f"☁️ 代理转发: {url[:80]}... → Worker")
-
-        # 添加鉴权 Token（如果配置了）
-        if PROXY_AUTH_TOKEN:
-            kwargs["headers"]["X-Proxy-Token"] = PROXY_AUTH_TOKEN
-
-        # 通过 Worker 转发，使用代理 URL 替换原始 URL
-        return _original_request(self, method, proxy_url, **kwargs)
-
-    # 调用原始方法
-    return _original_request(self, method, url, **kwargs)
-
-
-# 应用猴子补丁（Monkey Patch）
-requests.Session.request = _patched_request
-logger.info("🛡️ 反爬虫增强已启用：随机 User-Agent、浏览器 headers 伪装、超时时间 60 秒")
-# ========== 反爬虫增强结束 ==========
 
 
 
